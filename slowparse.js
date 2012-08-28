@@ -1245,6 +1245,11 @@ var Slowparse = (function() {
         }
         var valueTok = this.stream.makeToken();
         var unquotedValue = replaceEntityRefs(valueTok.value.slice(1, -1));
+
+        // special validation for inline styling
+        if (nameTok.value === "style") {
+          this._parseInlineStyle(unquotedValue, valueTok.interval.start+1);
+        }
         this.domBuilder.attribute(nameTok.value, unquotedValue, {
           name: nameTok.interval,
           value: valueTok.interval
@@ -1254,6 +1259,39 @@ var Slowparse = (function() {
         this.domBuilder.attribute(nameTok.value, '', {
           name: nameTok.interval
         });
+      }
+    },
+    // validate inline styling of HTML/SVG elements. Note that
+    // inline styling is much simpler than full CSS, in that only
+    // (property: value [; [property: value]]) syntax is used.
+    _parseInlineStyle: function(styleString, start) {
+      var rules = styleString.split(";"), i, last=rules.length, rule,
+          pair, property, value,
+          pos = 0;
+      for(i=0; i<last; i++) {
+        rule = rules[i];
+        if (rule === "") continue;
+        if (rule.indexOf(":")!==-1) {
+          pair = rule.split(":");
+          property = pair[0];
+          // legal property?
+          if(!this.cssParser._knownCSSProperty(property.trim())) {
+            console.log("error: ["+property+"] at {"+(pos+start)+","+(pos+start+property.length)+"} is not a known CSS property");
+          }
+          pos += 1;
+          // we don't do value validation at the moment
+          value = pair[1];
+          if(!value.trim()) {
+            console.log("error: missing value for property ["+property+"] at {"+(pos+start)+","+(pos+start+property.length)+"}");
+          }
+        } else {
+          if(!this.cssParser._knownCSSProperty(rule.trim())) {
+            console.log("error: ["+rule.trim()+"] at {"+(pos+start)+","+(pos+rule.length)+"} is not a known CSS property");
+          } else {
+            console.log("error: missing value for property ["+rule.trim()+"] at {"+(pos+start)+","+(pos+start+rule.length)+"}");
+          }
+        }
+        pos += (i>0 ? 1 : 0 ) + rule.length;
       }
     }
   };
