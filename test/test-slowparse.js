@@ -262,7 +262,7 @@ test("testing inline CSS - ", function() {
 
 testStyleSheet("parsing of CSS rule w/ one decl, no semicolon",
                "body { color: pink }",
-              function(html, css, styleContents) {
+               function(html, css, styleContents) {
     equal(styleContents.parseInfo.rules.length, 1);
     equal(styleContents.parseInfo.rules[0].declarations.properties.length, 1);
     
