@@ -259,6 +259,24 @@ var Slowparse = (function() {
         }
       };
     },
+    MISSING_CSS_PROPVAL_SEPARATOR: function(parser, start, end, startProperty, endProperty) {
+      return {
+        interval: {
+          start: start,
+          end: end
+        },
+        start: {
+          property: startProperty,
+          start: start,
+          end: start + startProperty.length
+        },
+        end: {
+          property: endProperty,
+          start: end - endProperty.length,
+          end: end
+        }
+      };
+    },
     MISSING_CSS_VALUE: function(parser, start, end, property) {
       return {
         cssProperty: {
@@ -1261,37 +1279,61 @@ var Slowparse = (function() {
         });
       }
     },
+    // helper function
+    _toCamelCase: function(cssProperty) {
+      return cssProperty.trim().replace(/-([a-z])/g, function(a,b) { return b.toUpperCase(); });
+    },
     // validate inline styling of HTML/SVG elements. Note that
-    // inline styling is much simpler than full CSS, in that only
+    // inline styling is much simpler than full CSS, as only
     // (property: value [; [property: value]]) syntax is used.
-    _parseInlineStyle: function(styleString, start) {
+    _parseInlineStyle: function(styleString, stringStart) {
       var rules = styleString.split(";"), i, last=rules.length, rule,
           pair, property, value,
-          pos = 0;
+          offset = 0, start = 0, end = 0;
       for(i=0; i<last; i++) {
         rule = rules[i];
-        if (rule === "") continue;
+        // split may generate an empty token, so skip over that
+        if (rule.trim() === "") continue;
+
+        // interpret a style rule
+        start = offset + stringStart;
+        end = start + rule.length;
+
         if (rule.indexOf(":")!==-1) {
           pair = rule.split(":");
-          property = pair[0];
-          // legal property?
-          if(!this.cssParser._knownCSSProperty(property.trim())) {
-            console.log("error: ["+property+"] at {"+(pos+start)+","+(pos+start+property.length)+"} is not a known CSS property");
+          
+          // missing ";" somewhere?
+          if(pair.length>2) {
+            end = start + pair[0].length + 1 + pair[1].length;
+            var tail = pair[1].split(/\s/);
+            tail = tail[tail.length-1];
+            throw new ParseError("MISSING_CSS_PROPVAL_SEPARATOR", this, start, end, pair[0].trim(), tail.trim());
           }
-          pos += 1;
-          // we don't do value validation at the moment
+          
+          property = pair[0];
+          end = start + property.length;
+          // throw on illegal property
+          if(!this.cssParser._knownCSSProperty(property.trim())) {
+            throw new ParseError("INVALID_CSS_PROPERTY_NAME", this, start, end, property);
+          }
+          // increment next offset for the lost :
+          offset++;
+          end++;
           value = pair[1];
           if(!value.trim()) {
-            console.log("error: missing value for property ["+property+"] at {"+(pos+start)+","+(pos+start+property.length)+"}");
-          }
-        } else {
-          if(!this.cssParser._knownCSSProperty(rule.trim())) {
-            console.log("error: ["+rule.trim()+"] at {"+(pos+start)+","+(pos+rule.length)+"} is not a known CSS property");
-          } else {
-            console.log("error: missing value for property ["+rule.trim()+"] at {"+(pos+start)+","+(pos+start+rule.length)+"}");
+            throw new ParseError("MISSING_CSS_VALUE", this, start, end, property);
           }
         }
-        pos += (i>0 ? 1 : 0 ) + rule.length;
+
+        // error handling if there is no ":" where there should be one.
+        else {
+          if(!this.cssParser._knownCSSProperty(rule.trim())) {
+            throw new ParseError("UNFINISHED_CSS_PROPERTY", this, start, end, rule.trim());
+          } else {
+            throw new ParseError("MISSING_CSS_VALUE", this, start, end, rule.trim());
+          }
+        }
+        offset += (i>0 ? 1 : 0 ) + rule.length;
       }
     }
   };

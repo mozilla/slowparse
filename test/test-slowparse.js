@@ -251,9 +251,18 @@ testManySnippets("parsing of valid HTML w/ whitespace", [
         "Document fragment is correct.");
 });
 
+test("testing inline CSS - ", function() {
+  var html = "<p style='font-family: serif; color: red; border-radius: 4px;'>test</p>";
+  var doc = parseWithoutErrors(html);
+
+  equal(doc.childNodes.length, 1, "doc has one child node");
+  var style = doc.childNodes[0].getAttribute("style");
+  equal(style, "font-family: serif; color: red; border-radius: 4px;", "style attribute contains the correct string");
+});
+
 testStyleSheet("parsing of CSS rule w/ one decl, no semicolon",
                "body { color: pink }",
-               function(html, css, styleContents) {
+              function(html, css, styleContents) {
     equal(styleContents.parseInfo.rules.length, 1);
     equal(styleContents.parseInfo.rules[0].declarations.properties.length, 1);
     

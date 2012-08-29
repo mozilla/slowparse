@@ -417,6 +417,30 @@ h1.error-category {
 </div>
 <div class="test">
   <script type="text/x-bad-html">
+    <p style="font-family: serif color: red; border-radius: red;">lol</p>
+  </script>
+  <script type="application/json">
+  {
+    "type": "MISSING_CSS_PROPVAL_SEPARATOR",
+    "interval": {
+      "start": 10,
+      "end": 34
+    },
+    "start": {
+      "property": "font-family",
+      "start": 10,
+      "end": 21
+    },
+    "end": {
+      "property": "color",
+      "start": 29,
+      "end": 34
+    }
+  }
+  </script>
+</div>
+<div class="test">
+  <script type="text/x-bad-html">
     <style> a { color:
   </script>
   <script type="application/json">
@@ -426,6 +450,21 @@ h1.error-category {
       "start": 12,
       "end": 17,
       "property": "color"
+    }
+  }
+  </script>
+</div>
+<div class="test">
+  <script type="text/x-bad-html">
+    <p style="colour:">test</p>
+  </script>
+  <script type="application/json">
+  {
+    "type": "INVALID_CSS_PROPERTY_NAME",
+    "cssProperty": {
+      "start": 10,
+      "end": 16,
+      "property": "colour"
     }
   }
   </script>
