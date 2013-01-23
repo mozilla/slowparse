@@ -40,6 +40,18 @@ test("parsing of misplaced DOCTYPE", function() {
   });
 });
 
+test("parsing of document with content after closing HTML tag", function() {
+  var html = '<html><head></head><body><p>illegal post-doc content test</p></body></html><p>like so</p>';
+  var result = Slowparse.HTML(document, html);
+  deepEqual(result.error, {
+    "illegalContent": {
+      "start": 75,
+      "end": 89
+    },
+    "type": "ILLEGAL_CONTENT_AFTER_DOCUMENT"
+  });
+});
+
 test("parsing of HTML comments", function() {
   var html = 'hi<!--testing-->there';
   var doc = parseWithoutErrors(html);
