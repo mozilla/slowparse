@@ -228,6 +228,20 @@ h1.error-category {
 </div>
 <div class="test">
   <script type="text/x-bad-html">
+    <html><head></head><body><p>illegal post-doc content test</p></body></html><p>like so</p>
+  </script>
+  <script type="application/json">
+  {
+    "type": "ILLEGAL_CONTENT_AFTER_DOCUMENT",
+    "illegalContent": {
+      "start": 75,
+      "end": 89
+    }
+  }
+  </script>
+</div>
+<div class="test">
+  <script type="text/x-bad-html">
     <a class=foo bar>
   </script>
   <script type="application/json">

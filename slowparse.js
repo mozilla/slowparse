@@ -205,6 +205,14 @@ var Slowparse = (function() {
         }
       };
     },
+    ILLEGAL_CONTENT_AFTER_DOCUMENT: function(parser, start, end) {
+      return {
+        illegalContent: {
+          start: start,
+          end: end
+        }
+      };
+    },
     // These are CSS errors.
     MISSING_CSS_SELECTOR: function(parser, start, end) {
       return {
@@ -1168,7 +1176,17 @@ var Slowparse = (function() {
         throw new ParseError("UNTERMINATED_CLOSE_TAG", this);
       var end = this.stream.makeToken().interval.end;
       this.domBuilder.currentNode.parseInfo.closeTag.end = end;
-      this.domBuilder.popElement();
+      var node = this.domBuilder.popElement();
+      // If there are any non-whitespace characters left in the stream
+      // at this point, there's content after </html> and it's an error.
+      if(node && node.nodeName.toLowerCase() === "html") {
+        this.stream.eatWhile("\s");
+        if (this.stream.next() !== undefined) {
+          this.stream.eatWhile(".");
+          var token = this.stream.makeToken();
+          throw new ParseError("ILLEGAL_CONTENT_AFTER_DOCUMENT", this, end, token.interval.end);
+        }
+      }
     },
     // This helper function parses the rest of an opening tag after
     // its tag name, looking for `attribute="value"` data until a
@@ -1294,7 +1312,9 @@ var Slowparse = (function() {
     // This method pops the current element off the DOM builder's stack,
     // making its parent element the currently active element.
     popElement: function() {
+      var ret = this.currentNode;
       this.currentNode = this.currentNode.parentNode;
+      return ret;
     },
     // This method appends an HTML comment node to the currently active
     // element.
