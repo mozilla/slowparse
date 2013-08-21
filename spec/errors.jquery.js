@@ -176,6 +176,6 @@
   
   // We want to use "mustache"-style templating, e.g. `hello there {{name}}`.
   var mustacheSettings = {
-    escape: /\{\{(.+?)\}\}/g
+    escape: /\[\[(.+?)\]\]/g
   };
 })(jQuery);
