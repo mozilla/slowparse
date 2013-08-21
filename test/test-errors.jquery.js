@@ -12,7 +12,7 @@ test("$.fn.fillError() raises nice err when template not found", function() {
 
 test("$.fn.fillError() works when template is found", function() {
   var templates = $('<div class="error-msg BLARGY">' +
-                    '<p>{{foo.bar}}</p></div>');
+                    '<p>[[foo.bar]]</p></div>');
   var div = $('<div></div>').fillError({
     type: "BLARGY",
     foo: {bar: "hi"}
