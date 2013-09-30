@@ -205,17 +205,17 @@ var Slowparse = (function() {
         }
       };
     },
-	//Special error for http link does not work with https page
-	HTTP_LINK_FROM_HTTPS_PAGE: function(parser, nameTok) {
+    //Special error for http link does not work with https page
+    HTTP_LINK_FROM_HTTPS_PAGE: function(parser, ValueTok) {
       return {
         openTag: this._combine({
           name: parser.domBuilder.currentNode.nodeName.toLowerCase()
         }, parser.domBuilder.currentNode.parseInfo.openTag),
         attribute: {
           name: {
-            value: nameTok.value,
-            start: nameTok.interval.start,
-            end: nameTok.interval.end
+            value: ValueTok.value,
+            start: ValueTok.interval.start,
+            end: ValueTok.interval.end
           },
           value: {
             start: parser.stream.makeToken().interval.start
@@ -1269,10 +1269,11 @@ var Slowparse = (function() {
           throw new ParseError("UNTERMINATED_ATTR_VALUE", this, nameTok);
         }
         var valueTok = this.stream.makeToken();
-		//add new validate for http link from https page
-		if (valueTok == 'href' && this.stream.match("http:", true) && document.location.protocol == 'https:'){
-		throw new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok);
+	//add new validate for http link from https page
+	if (nameTok.value == 'href' && valueTok.value.match(/http:/) && document.location.protocol == 'https:'){
+	throw new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, valueTok);		
         }
+	//***********************************************************************************************
         var unquotedValue = replaceEntityRefs(valueTok.value.slice(1, -1));
         this.domBuilder.attribute(nameTok.value, unquotedValue, {
           name: nameTok.interval,
