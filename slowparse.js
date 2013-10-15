@@ -1287,16 +1287,21 @@ var Slowparse = (function() {
         }
         var valueTok = this.stream.makeToken();
 <<<<<<< HEAD
+<<<<<<< HEAD
         //Add a new validator to check if there is a http link in a https page        
         if (checkMixedContent && valueTok.value.match(/http:/) && isActiveContent(tagName, nameTok.value)) {
           throw new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok);			
 =======
+=======
+>>>>>>> clean
 <<<<<<< HEAD
 	//add new validate for http link from https page
 	if (nameTok.value == 'href' && valueTok.value.match(/http:/) && document.location.protocol == 'https:'){
 	throw new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, valueTok);		
 =======
-		//define activeContent for links in the page
+=======
+>>>>>>> clean
+        //define activeContent for links in the page
 		var activeContent = function (tag_Name, attr_Name){
 		  if ((tag_Name == 'a' || tag_Name == 'link') && attr_Name == 'href' ||
 		  (tag_Name == 'script' || tag_Name == 'iframe') && attr_Name == 'src'){
@@ -1306,12 +1311,20 @@ var Slowparse = (function() {
 		    return false;
 		  }
 		};
-		//add new validate for http link from https page
-		if (activeContent(tagName,nameTok.value) && valueTok.value.match(/http:/)){
+        //add new validate for http link from https page
+        if (activeContent(tagName,nameTok.value) && valueTok.value.match(/http:/)){
 		throw new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok);
+<<<<<<< HEAD
 >>>>>>> Update the warning locater with tag-attribute pairs
 >>>>>>> Update the warning locater with tag-attribute pairs
         }
+<<<<<<< HEAD
+=======
+	//***********************************************************************************************
+=======
+        }
+>>>>>>> clean
+>>>>>>> clean
         var unquotedValue = replaceEntityRefs(valueTok.value.slice(1, -1));
         this.domBuilder.attribute(nameTok.value, unquotedValue, {
           name: nameTok.interval,
