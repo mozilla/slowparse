@@ -218,7 +218,8 @@ var Slowparse = (function() {
             end: nameTok.interval.end
           },
           value: {
-            start: parser.stream.makeToken().interval.start
+            start: parser.stream.makeToken().interval.start,
+			end: parser.stream.makeToken().interval.end
           }
         },
       };
@@ -1243,7 +1244,7 @@ var Slowparse = (function() {
     },
     // This helper function parses an HTML tag attribute. It expects
     // the stream to be right after the end of an attribute name.
-    _parseAttribute: function() {
+    _parseAttribute: function(tagName) {
       var nameTok = this.stream.makeToken();
       nameTok.value = nameTok.value.toLowerCase();
       this.stream.eatSpace();
@@ -1269,8 +1270,18 @@ var Slowparse = (function() {
           throw new ParseError("UNTERMINATED_ATTR_VALUE", this, nameTok);
         }
         var valueTok = this.stream.makeToken();
+		//define activeContent for links in the page
+		var activeContent = function (tag_Name, attr_Name){
+		  if ((tag_Name == 'a' || tag_Name == 'link') && attr_Name == 'href' || 
+		  (tag_Name == 'script' || tag_Name == 'iframe') && attr_Name == 'src'){
+		    return true;
+		  }
+		  else{
+		    return false;
+		  }
+		};
 		//add new validate for http link from https page
-		if (valueTok == 'href' && this.stream.match("http:", true) && document.location.protocol == 'https:'){
+		if (activeContent(tagName,nameTok.value) && valueTok.value.match(/http:/)){
 		throw new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok);
         }
         var unquotedValue = replaceEntityRefs(valueTok.value.slice(1, -1));
