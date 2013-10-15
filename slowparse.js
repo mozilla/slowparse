@@ -1270,7 +1270,6 @@ var Slowparse = (function() {
           throw new ParseError("UNTERMINATED_ATTR_VALUE", this, nameTok);
         }
         var valueTok = this.stream.makeToken();
-<<<<<<< HEAD
 		//define activeContent for links in the page
 		var activeContent = function (tag_Name, attr_Name){
 		  if ((tag_Name == 'a' || tag_Name == 'link') && attr_Name == 'href' || 
@@ -1284,11 +1283,7 @@ var Slowparse = (function() {
 		//add new validate for http link from https page
 		if (activeContent(tagName,nameTok.value) && valueTok.value.match(/http:/)){
 		throw new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok);
-=======
-		
->>>>>>> 3b3146bc8188d907a4c534bee28e64feb393675d
-        }
-	//***********************************************************************************************
+        }	
         var unquotedValue = replaceEntityRefs(valueTok.value.slice(1, -1));
         this.domBuilder.attribute(nameTok.value, unquotedValue, {
           name: nameTok.interval,
