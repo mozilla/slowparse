@@ -36,6 +36,7 @@ var Slowparse = (function() {
     quot: '"',
     amp: "&"
   };
+<<<<<<< HEAD
   //Define a property checker for https page 
   var checkMixedContent = (window.location.protocol === "https:");
   //Define activeContent with tag-attribute pairs  
@@ -48,6 +49,13 @@ var Slowparse = (function() {
     }
       return false;
   }	  
+=======
+  //define activeContent of tag-attributes pairs
+  function isActiveContent(tag_Name, attr_Name){
+	return ((tag_Name === 'a'      || tag_Name === 'link')   && attr_Name === 'href') ||
+	((tag_Name === 'script' || tag_Name === 'iframe') && attr_Name === 'src');
+  }
+>>>>>>> Bug fixed!
   // `replaceEntityRefs()` will replace named character entity references
   // (e.g. `&lt;`) in the given text string and return the result. If an
   // entity name is unrecognized, don't replace it at all. Writing HTML
@@ -216,10 +224,14 @@ var Slowparse = (function() {
         }
       };
     },
+<<<<<<< HEAD
     //Special error type for a http link does not work in a https page
+=======
+    //Special error for http link does not work in https page
+>>>>>>> Bug fixed!
     HTTP_LINK_FROM_HTTPS_PAGE: function(parser, nameTok, valueTok) {
       return {
-        openTag: this._combine({
+	  openTag: this._combine({
           name: parser.domBuilder.currentNode.nodeName.toLowerCase()
         }, parser.domBuilder.currentNode.parseInfo.openTag),
         attribute: {
@@ -230,12 +242,17 @@ var Slowparse = (function() {
           },
           value: {
 <<<<<<< HEAD
+<<<<<<< HEAD
             start: valueTok.interval.start + 1,
             end: valueTok.interval.end - 1
 =======
             start: parser.stream.makeToken().interval.start,
 			end: parser.stream.makeToken().interval.end
 >>>>>>> Update the warning locater with tag-attribute pairs
+=======
+            start: valueTok.interval.start + 1,
+			end: valueTok.interval.end - 1
+>>>>>>> Bug fixed!
           }
         },
       };
@@ -1288,12 +1305,15 @@ var Slowparse = (function() {
         var valueTok = this.stream.makeToken();
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
         //Add a new validator to check if there is a http link in a https page        
         if (checkMixedContent && valueTok.value.match(/http:/) && isActiveContent(tagName, nameTok.value)) {
           throw new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok);			
 =======
 =======
 >>>>>>> clean
+=======
+>>>>>>> Bug fixed!
 <<<<<<< HEAD
 	//add new validate for http link from https page
 	if (nameTok.value == 'href' && valueTok.value.match(/http:/) && document.location.protocol == 'https:'){
@@ -1322,8 +1342,19 @@ var Slowparse = (function() {
 =======
 	//***********************************************************************************************
 =======
+<<<<<<< HEAD
         }
 >>>>>>> clean
+=======
+=======
+		//add a new validator for a http link in a https page
+		if (isActiveContent(tagName, nameTok.value)){
+		if ( valueTok.value.match(/http:/) ){
+		    throw new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok);
+		  }
+>>>>>>> Bug fixed!
+        }	
+>>>>>>> Bug fixed!
 >>>>>>> clean
         var unquotedValue = replaceEntityRefs(valueTok.value.slice(1, -1));
         this.domBuilder.attribute(nameTok.value, unquotedValue, {
