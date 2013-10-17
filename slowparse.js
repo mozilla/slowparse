@@ -36,7 +36,11 @@ var Slowparse = (function() {
     quot: '"',
     amp: "&"
   };
-
+  //define activeContent of tag-attributes pairs
+  function isActiveContent(tag_Name, attr_Name){
+	return ((tag_Name === 'a'      || tag_Name === 'link')   && attr_Name === 'href') || 
+		   ((tag_Name === 'script' || tag_Name === 'iframe') && attr_Name === 'src');
+  }
   // `replaceEntityRefs()` will replace named character entity references
   // (e.g. `&lt;`) in the given text string and return the result. If an
   // entity name is unrecognized, don't replace it at all. Writing HTML
@@ -205,25 +209,25 @@ var Slowparse = (function() {
         }
       };
     },
-    //Special error for http link does not work with https page
-    HTTP_LINK_FROM_HTTPS_PAGE: function(parser, ValueTok) {
+    //Special error for http link does not work in https page
+    HTTP_LINK_FROM_HTTPS_PAGE: function(parser, nameTok, valueTok) {
       return {
-        openTag: this._combine({
+	  openTag: this._combine({
           name: parser.domBuilder.currentNode.nodeName.toLowerCase()
         }, parser.domBuilder.currentNode.parseInfo.openTag),
         attribute: {
           name: {
-            value: ValueTok.value,
-            start: ValueTok.interval.start,
-            end: ValueTok.interval.end
+            value: nameTok.value,
+            start: nameTok.interval.start,
+            end: nameTok.interval.end
           },
           value: {
-            start: parser.stream.makeToken().interval.start,
-			end: parser.stream.makeToken().interval.end
+            start: valueTok.interval.start + 1,
+			end: valueTok.interval.end - 1
           }
         },
       };
-    },
+    },	
     // These are CSS errors.
     MISSING_CSS_SELECTOR: function(parser, start, end) {
       return {
@@ -1270,19 +1274,11 @@ var Slowparse = (function() {
           throw new ParseError("UNTERMINATED_ATTR_VALUE", this, nameTok);
         }
         var valueTok = this.stream.makeToken();
-		//define activeContent for links in the page
-		var activeContent = function (tag_Name, attr_Name){
-		  if ((tag_Name == 'a' || tag_Name == 'link') && attr_Name == 'href' || 
-		  (tag_Name == 'script' || tag_Name == 'iframe') && attr_Name == 'src'){
-		    return true;
+		//add a new validator for a http link in a https page
+		if (isActiveContent(tagName, nameTok.value)){		  
+		  if ( valueTok.value.match(/http:/) ){			
+		    throw new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok);			
 		  }
-		  else{
-		    return false;
-		  }
-		};
-		//add new validate for http link from https page
-		if (activeContent(tagName,nameTok.value) && valueTok.value.match(/http:/)){
-		throw new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok);
         }	
         var unquotedValue = replaceEntityRefs(valueTok.value.slice(1, -1));
         this.domBuilder.attribute(nameTok.value, unquotedValue, {
