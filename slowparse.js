@@ -38,6 +38,7 @@ var Slowparse = (function() {
   };
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
   //Define a property checker for https page 
   var checkMixedContent = (window.location.protocol === "https:");
   //Define activeContent with tag-attribute pairs
@@ -53,6 +54,8 @@ var Slowparse = (function() {
 =======
 =======
 >>>>>>> Updated with JavaScript code conventions
+=======
+>>>>>>> move checkMixedContent to very beginning
   //define activeContent of tag-attributes pairs
   function isActiveContent(tag_Name, attr_Name){
 	return ((tag_Name === 'a'      || tag_Name === 'link')   && attr_Name === 'href') ||
@@ -62,6 +65,10 @@ var Slowparse = (function() {
 >>>>>>> Bug fixed!
 =======
 =======
+=======
+  //Define a property checker for https page
+  var checkMixedContent = (window.location.protocol === "https:");
+>>>>>>> move checkMixedContent to very beginning
   //Define activeContent with tag-attribute pairs  
   function isActiveContent (tagName, attrName) {
     if (attrName === "href") {
@@ -273,8 +280,12 @@ var Slowparse = (function() {
 >>>>>>> Update the warning locater with tag-attribute pairs
 =======
             start: valueTok.interval.start + 1,
+<<<<<<< HEAD
 			end: valueTok.interval.end - 1
 >>>>>>> Bug fixed!
+=======
+            end: valueTok.interval.end - 1
+>>>>>>> move checkMixedContent to very beginning
           }
         },
       };
@@ -1329,6 +1340,7 @@ var Slowparse = (function() {
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
         //Add a new validator to check if there is a http link in a https page        
         if (checkMixedContent && valueTok.value.match(/http:/) && isActiveContent(tagName, nameTok.value)) {
           throw new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok);			
@@ -1339,6 +1351,8 @@ var Slowparse = (function() {
 >>>>>>> Bug fixed!
 =======
 >>>>>>> Updated with JavaScript code conventions
+=======
+>>>>>>> move checkMixedContent to very beginning
 <<<<<<< HEAD
 	//add new validate for http link from https page
 	if (nameTok.value == 'href' && valueTok.value.match(/http:/) && document.location.protocol == 'https:'){
@@ -1384,6 +1398,9 @@ var Slowparse = (function() {
 =======
         //Add a new validator to check if there is a http link in a https page
         var checkMixedContent = (window.location.protocol === "https:");
+=======
+        //Add a new validator to check if there is a http link in a https page
+>>>>>>> move checkMixedContent to very beginning
         if (checkMixedContent && valueTok.value.match(/http:/) && isActiveContent(tagName, nameTok.value)) {
           throw new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok);
         }
