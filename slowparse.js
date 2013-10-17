@@ -36,11 +36,16 @@ var Slowparse = (function() {
     quot: '"',
     amp: "&"
   };
-  //define activeContent of tag-attributes pairs
-  function isActiveContent(tag_Name, attr_Name){
-	return ((tag_Name === 'a'      || tag_Name === 'link')   && attr_Name === 'href') || 
-		   ((tag_Name === 'script' || tag_Name === 'iframe') && attr_Name === 'src');
-  }
+  //Define activeContent with tag-attribute pairs  
+  function isActiveContent (tagName, attrName) {
+    if (attrName === "href") {
+	  return ["a", "link"].indexOf(tagName) > -1;
+	}
+	if (attrName === "src") {
+	  return ["script", "iframe"].indexOf(tagName) > -1;
+	}
+      return false;
+  }	  
   // `replaceEntityRefs()` will replace named character entity references
   // (e.g. `&lt;`) in the given text string and return the result. If an
   // entity name is unrecognized, don't replace it at all. Writing HTML
@@ -209,10 +214,10 @@ var Slowparse = (function() {
         }
       };
     },
-    //Special error for http link does not work in https page
+    //Special error type for a http link does not work in a https page
     HTTP_LINK_FROM_HTTPS_PAGE: function(parser, nameTok, valueTok) {
       return {
-	  openTag: this._combine({
+        openTag: this._combine({
           name: parser.domBuilder.currentNode.nodeName.toLowerCase()
         }, parser.domBuilder.currentNode.parseInfo.openTag),
         attribute: {
@@ -1274,12 +1279,11 @@ var Slowparse = (function() {
           throw new ParseError("UNTERMINATED_ATTR_VALUE", this, nameTok);
         }
         var valueTok = this.stream.makeToken();
-		//add a new validator for a http link in a https page
-		if (isActiveContent(tagName, nameTok.value)){		  
-		  if ( valueTok.value.match(/http:/) ){			
-		    throw new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok);			
-		  }
-        }	
+        //Add a new validator to check if there is a http link in a https page
+        var checkMixedContent = (window.location.protocol === "https:");
+        if (checkMixedContent && valueTok.value.match(/http:/) && isActiveContent(tagName, nameTok.value)) {
+          throw new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok);			
+        }
         var unquotedValue = replaceEntityRefs(valueTok.value.slice(1, -1));
         this.domBuilder.attribute(nameTok.value, unquotedValue, {
           name: nameTok.interval,
