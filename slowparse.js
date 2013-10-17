@@ -36,6 +36,8 @@ var Slowparse = (function() {
     quot: '"',
     amp: "&"
   };
+  //Define a property checker for https page 
+  var checkMixedContent = (window.location.protocol === "https:");
   //Define activeContent with tag-attribute pairs  
   function isActiveContent (tagName, attrName) {
     if (attrName === "href") {
@@ -228,7 +230,7 @@ var Slowparse = (function() {
           },
           value: {
             start: valueTok.interval.start + 1,
-			end: valueTok.interval.end - 1
+            end: valueTok.interval.end - 1
           }
         },
       };
@@ -1279,8 +1281,7 @@ var Slowparse = (function() {
           throw new ParseError("UNTERMINATED_ATTR_VALUE", this, nameTok);
         }
         var valueTok = this.stream.makeToken();
-        //Add a new validator to check if there is a http link in a https page
-        var checkMixedContent = (window.location.protocol === "https:");
+        //Add a new validator to check if there is a http link in a https page        
         if (checkMixedContent && valueTok.value.match(/http:/) && isActiveContent(tagName, nameTok.value)) {
           throw new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok);			
         }
