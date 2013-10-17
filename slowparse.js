@@ -39,11 +39,11 @@ var Slowparse = (function() {
   //Define activeContent with tag-attribute pairs  
   function isActiveContent (tagName, attrName) {
     if (attrName === "href") {
-	  return ["a", "link"].indexOf(tagName) > -1;
-	}
-	if (attrName === "src") {
-	  return ["script", "iframe"].indexOf(tagName) > -1;
-	}
+      return ["a", "link"].indexOf(tagName) > -1;
+    }
+    if (attrName === "src") {
+      return ["script", "iframe"].indexOf(tagName) > -1;
+    }
       return false;
   }	  
   // `replaceEntityRefs()` will replace named character entity references
