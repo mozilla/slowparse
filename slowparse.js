@@ -68,14 +68,18 @@ var Slowparse = (function() {
 =======
   //Define a property checker for https page
   var checkMixedContent = (window.location.protocol === "https:");
+<<<<<<< HEAD
 >>>>>>> move checkMixedContent to very beginning
+=======
+
+>>>>>>> Add 'img-src' checker into isActiveContent
   //Define activeContent with tag-attribute pairs  
   function isActiveContent (tagName, attrName) {
     if (attrName === "href") {
       return ["a", "link"].indexOf(tagName) > -1;
     }
     if (attrName === "src") {
-      return ["script", "iframe"].indexOf(tagName) > -1;
+      return ["script", "iframe", "img"].indexOf(tagName) > -1;
     }
       return false;
   }
@@ -1341,6 +1345,7 @@ var Slowparse = (function() {
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
         //Add a new validator to check if there is a http link in a https page        
         if (checkMixedContent && valueTok.value.match(/http:/) && isActiveContent(tagName, nameTok.value)) {
           throw new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok);			
@@ -1353,6 +1358,8 @@ var Slowparse = (function() {
 >>>>>>> Updated with JavaScript code conventions
 =======
 >>>>>>> move checkMixedContent to very beginning
+=======
+>>>>>>> Add 'img-src' checker into isActiveContent
 <<<<<<< HEAD
 	//add new validate for http link from https page
 	if (nameTok.value == 'href' && valueTok.value.match(/http:/) && document.location.protocol == 'https:'){
@@ -1401,10 +1408,18 @@ var Slowparse = (function() {
 =======
         //Add a new validator to check if there is a http link in a https page
 >>>>>>> move checkMixedContent to very beginning
+=======
+
+        //Add a new validator to check if there is a http link in a https page
+>>>>>>> Add 'img-src' checker into isActiveContent
         if (checkMixedContent && valueTok.value.match(/http:/) && isActiveContent(tagName, nameTok.value)) {
           throw new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok);
         }
+<<<<<<< HEAD
 >>>>>>> Updated with JavaScript code conventions
+=======
+
+>>>>>>> Add 'img-src' checker into isActiveContent
         var unquotedValue = replaceEntityRefs(valueTok.value.slice(1, -1));
         this.domBuilder.attribute(nameTok.value, unquotedValue, {
           name: nameTok.interval,
