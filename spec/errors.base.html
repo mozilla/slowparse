@@ -46,6 +46,14 @@
     <em data-highlight="[[attribute.value.start]]">here</em> that
     doesn't end with a closing double quote.</p>
 </div>
+<div class="error-msg HTTP_LINK_FROM_HTTPS_PAGE">
+  <p>The <code>&lt;[[openTag.name]]&gt;</code> tag's 
+  <code>[[attribute.name.value]]</code> attribute points to a HTTP resource 
+    <em data-highlight='[[attribute.value.start]],[[attribute.value.end]]'>here</em>, 
+    but the page itself is hosted on HTTPS. Most browsers will not be able to load this resource 
+    because of mixed-content restrictions. Either point to an HTTPS resource, 
+    or include the data as content in an on-page <code>&lt;[[openTag.name]]&gt;</code> element instead.</p>
+</div>
 <div class="error-msg UNQUOTED_ATTR_VALUE">
   <p>The Attribute value <em data-highlight="[[start]]">here</em>
     should start with an opening double quote.</p>
