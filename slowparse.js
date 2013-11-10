@@ -37,6 +37,8 @@ var Slowparse = (function() {
     amp: "&"
   };
 
+  var currentNode = parser.domBuilder.currentNode;
+
   //Define a property checker for https page
   var checkMixedContent = (window.location.protocol === "https:");
 
@@ -126,8 +128,8 @@ var Slowparse = (function() {
     UNCLOSED_TAG: function(parser) {
       return {
         openTag: this._combine({
-          name: parser.domBuilder.currentNode.nodeName.toLowerCase()
-        }, parser.domBuilder.currentNode.parseInfo.openTag)
+          name: currentNode.nodeName.toLowerCase()
+        }, currentNode.parseInfo.openTag)
       };
     },
     INVALID_TAG_NAME: function(tagName, token) {
@@ -148,7 +150,7 @@ var Slowparse = (function() {
       return {
         openTag: this._combine({
           name: openTagName
-        }, parser.domBuilder.currentNode.parseInfo.openTag),
+        }, currentNode.parseInfo.openTag),
         closeTag: this._combine({
           name: closeTagName
         }, token.interval)
@@ -169,8 +171,8 @@ var Slowparse = (function() {
     UNTERMINATED_ATTR_VALUE: function(parser, nameTok) {
       return {
         openTag: this._combine({
-          name: parser.domBuilder.currentNode.nodeName.toLowerCase()
-        }, parser.domBuilder.currentNode.parseInfo.openTag),
+          name: currentNode.nodeName.toLowerCase()
+        }, currentNode.parseInfo.openTag),
         attribute: {
           name: {
             value: nameTok.value,
@@ -194,16 +196,16 @@ var Slowparse = (function() {
     UNTERMINATED_OPEN_TAG: function(parser) {
       return {
         openTag: {
-          start: parser.domBuilder.currentNode.parseInfo.openTag.start,
+          start: currentNode.parseInfo.openTag.start,
           end: parser.stream.pos,
-          name: parser.domBuilder.currentNode.nodeName.toLowerCase()
+          name: currentNode.nodeName.toLowerCase()
         }
       };
     },
     SELF_CLOSING_NON_VOID_ELEMENT: function(parser, tagName) {
       return {
         name: tagName,
-        start: parser.domBuilder.currentNode.parseInfo.openTag.start,
+        start: currentNode.parseInfo.openTag.start,
         end: parser.stream.makeToken().interval.end
       };
     },
@@ -213,8 +215,8 @@ var Slowparse = (function() {
         end = parser.stream.makeToken().interval.start;
       return {
         closeTag: {
-          name: parser.domBuilder.currentNode.nodeName.toLowerCase(),
-          start: parser.domBuilder.currentNode.parseInfo.closeTag.start,
+          name: currentNode.nodeName.toLowerCase(),
+          start: currentNode.parseInfo.closeTag.start,
           end: end
         }
       };
@@ -223,8 +225,8 @@ var Slowparse = (function() {
     HTTP_LINK_FROM_HTTPS_PAGE: function(parser, nameTok, valueTok) {
       return {
         openTag: this._combine({
-          name: parser.domBuilder.currentNode.nodeName.toLowerCase()
-        }, parser.domBuilder.currentNode.parseInfo.openTag),
+          name: currentNode.nodeName.toLowerCase()
+        }, currentNode.parseInfo.openTag),
         attribute: {
           name: {
             value: nameTok.value,
