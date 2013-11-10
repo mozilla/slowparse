@@ -37,8 +37,6 @@ var Slowparse = (function() {
     amp: "&"
   };
 
-  var currentNode = parser.domBuilder.currentNode;
-
   //Define a property checker for https page
   var checkMixedContent = (window.location.protocol === "https:");
 
@@ -126,6 +124,7 @@ var Slowparse = (function() {
     },
     // These are HTML errors.
     UNCLOSED_TAG: function(parser) {
+      var currentNode = parser.domBuilder.currentNode;
       return {
         openTag: this._combine({
           name: currentNode.nodeName.toLowerCase()
@@ -147,6 +146,7 @@ var Slowparse = (function() {
       };
     },
     MISMATCHED_CLOSE_TAG: function(parser, openTagName, closeTagName, token) {
+      var currentNode = parser.domBuilder.currentNode;
       return {
         openTag: this._combine({
           name: openTagName
@@ -169,6 +169,7 @@ var Slowparse = (function() {
       };
     },
     UNTERMINATED_ATTR_VALUE: function(parser, nameTok) {
+      var currentNode = parser.domBuilder.currentNode;
       return {
         openTag: this._combine({
           name: currentNode.nodeName.toLowerCase()
@@ -194,6 +195,7 @@ var Slowparse = (function() {
       };
     },
     UNTERMINATED_OPEN_TAG: function(parser) {
+      var currentNode = parser.domBuilder.currentNode;
       return {
         openTag: {
           start: currentNode.parseInfo.openTag.start,
@@ -203,6 +205,7 @@ var Slowparse = (function() {
       };
     },
     SELF_CLOSING_NON_VOID_ELEMENT: function(parser, tagName) {
+      var currentNode = parser.domBuilder.currentNode;
       return {
         name: tagName,
         start: currentNode.parseInfo.openTag.start,
@@ -210,6 +213,7 @@ var Slowparse = (function() {
       };
     },
     UNTERMINATED_CLOSE_TAG: function(parser) {
+      var currentNode = parser.domBuilder.currentNode;
       var end = parser.stream.pos;
       if (!parser.stream.end())
         end = parser.stream.makeToken().interval.start;
@@ -223,6 +227,7 @@ var Slowparse = (function() {
     },
     //Special error type for a http link does not work in a https page
     HTTP_LINK_FROM_HTTPS_PAGE: function(parser, nameTok, valueTok) {
+      var currentNode = parser.domBuilder.currentNode;
       return {
         openTag: this._combine({
           name: currentNode.nodeName.toLowerCase()
