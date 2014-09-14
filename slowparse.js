@@ -292,6 +292,24 @@ var Slowparse = (function() {
         }
       };
     },
+    MISSING_CSS_PROPVAL_SEPARATOR: function(parser, start, end, startProperty, endProperty) {
+      return {
+        interval: {
+          start: start,
+          end: end
+        },
+        start: {
+          property: startProperty,
+          start: start,
+          end: start + startProperty.length
+        },
+        end: {
+          property: endProperty,
+          start: end - endProperty.length,
+          end: end
+        }
+      };
+    },
     MISSING_CSS_VALUE: function(parser, start, end, property) {
       return {
         cssProperty: {
@@ -1291,6 +1309,11 @@ var Slowparse = (function() {
         }
 
         var unquotedValue = replaceEntityRefs(valueTok.value.slice(1, -1));
+
+        // special validation for inline styling
+        if (nameTok.value === "style") {
+          this._parseInlineStyle(unquotedValue, valueTok.interval.start+1);
+        }
         this.domBuilder.attribute(nameTok.value, unquotedValue, {
           name: nameTok.interval,
           value: valueTok.interval
@@ -1300,6 +1323,63 @@ var Slowparse = (function() {
         this.domBuilder.attribute(nameTok.value, '', {
           name: nameTok.interval
         });
+      }
+    },
+    // helper function
+    _toCamelCase: function(cssProperty) {
+      return cssProperty.trim().replace(/-([a-z])/g, function(a,b) { return b.toUpperCase(); });
+    },
+    // validate inline styling of HTML/SVG elements. Note that
+    // inline styling is much simpler than full CSS, as only
+    // (property: value [; [property: value]]) syntax is used.
+    _parseInlineStyle: function(styleString, stringStart) {
+      var rules = styleString.split(";"), i, last=rules.length, rule,
+          pair, property, value,
+          offset = 0, start = 0, end = 0;
+      for(i=0; i<last; i++) {
+        rule = rules[i];
+        // split may generate an empty token, so skip over that
+        if (rule.trim() === "") continue;
+
+        // interpret a style rule
+        start = offset + stringStart;
+        end = start + rule.length;
+
+        if (rule.indexOf(":")!==-1) {
+          pair = rule.split(":");
+          
+          // missing ";" somewhere?
+          if(pair.length>2) {
+            end = start + pair[0].length + 1 + pair[1].length;
+            var tail = pair[1].split(/\s/);
+            tail = tail[tail.length-1];
+            throw new ParseError("MISSING_CSS_PROPVAL_SEPARATOR", this, start, end, pair[0].trim(), tail.trim());
+          }
+          
+          property = pair[0];
+          end = start + property.length;
+          // throw on illegal property
+          if(!this.cssParser._knownCSSProperty(property.trim())) {
+            throw new ParseError("INVALID_CSS_PROPERTY_NAME", this, start, end, property);
+          }
+          // increment next offset for the lost :
+          offset++;
+          end++;
+          value = pair[1];
+          if(!value.trim()) {
+            throw new ParseError("MISSING_CSS_VALUE", this, start, end, property);
+          }
+        }
+
+        // error handling if there is no ":" where there should be one.
+        else {
+          if(!this.cssParser._knownCSSProperty(rule.trim())) {
+            throw new ParseError("UNFINISHED_CSS_PROPERTY", this, start, end, rule.trim());
+          } else {
+            throw new ParseError("MISSING_CSS_VALUE", this, start, end, rule.trim());
+          }
+        }
+        offset += (i>0 ? 1 : 0 ) + rule.length;
       }
     }
   };
