@@ -27,6 +27,16 @@ test("parsing of valid DOCTYPE", function() {
   });
 });
 
+test("terminate on XML document", function() {
+  var html = '<?xml version="1.0"?><!doctype html5><p>xml document</p>';
+  var result = Slowparse.HTML(document, html);
+  deepEqual(result.error, {
+    "type": "XML_DOCUMENT_DETECTED",
+    "start": 0,
+    "end": 21
+  });
+});
+
 test("parsing of misplaced DOCTYPE", function() {
   var html = '<p>hi</p><!DOCTYPE html>';
   var result = Slowparse.HTML(document, html);

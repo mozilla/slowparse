@@ -122,6 +122,13 @@ var Slowparse = (function() {
       }
       return obj;
     },
+    // These are document errors.
+    XML_DOCUMENT_DETECTED: function(parser, start, end) {
+      return {
+        start: start,
+        end: end
+      };
+    },
     // These are HTML errors.
     UNCLOSED_TAG: function(parser) {
       return {
@@ -1058,13 +1065,21 @@ var Slowparse = (function() {
       // First we check to see if the beginning of our stream is
       // an HTML5 doctype tag. We're currently quite strict and don't
       // parse XHTML or other doctypes.
-      if (this.stream.match(this.html5Doctype, true, true))
+      if (this.stream.match("<?xml", false, true)) {
+        this.stream.eatWhile("[^\>]");
+        this.stream.next();
+        var token = this.stream.makeToken();
+        throw new ParseError("XML_DOCUMENT_DETECTED", this, token.interval.start, token.interval.end);
+      }
+
+      if (this.stream.match(this.html5Doctype, true, true)) {
         this.domBuilder.fragment.parseInfo = {
           doctype: {
             start: 0,
             end: this.stream.pos
           }
         };
+      }
 
       // Next, we parse "tag soup", creating text nodes and diving into
       // tags as we find them.
