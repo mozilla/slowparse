@@ -1,0 +1,31 @@
+{
+  "name": "slowparse",
+  "version": "1.0.0",
+  "description": "Slowparse is a token stream parser for HTML and CSS text, recording regions of interest during the parse run and signaling any errors detected accompanied by relevant regions in the text stream, to make debugging easy.",
+  "main": "slowparse.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "node test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mozilla/slowparse.git"
+  },
+  "keywords": [
+    "slowparse",
+    "html",
+    "css",
+    "parser"
+  ],
+  "author": "Mozilla Foundation",
+  "license": "MPL 2.0",
+  "bugs": {
+    "url": "https://github.com/mozilla/slowparse/issues"
+  },
+  "homepage": "https://github.com/mozilla/slowparse",
+  "devDependencies": {
+    "jsdom": "^1.2.1"
+  }
+}
