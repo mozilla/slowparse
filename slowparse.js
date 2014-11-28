@@ -600,6 +600,25 @@
         }
       }
     },
+    // CSS content values terminate on ; only when that ; is not
+    // inside a quoted string.
+    findContentEnd: function() {
+      var quoted = false,
+          c, _c;
+      while(!this.end()) {
+        c = this.next();
+        if (c === '"' || c === "'") {
+          if (quoted === false) quoted = c;
+          else if (quoted === c && _c !== "\\") quoted = false;
+          continue;
+        }
+        if (c === ';' && quoted === false) {
+          break;
+        }
+        _c = c;
+      }
+      this.pos--;
+    },
     // strip any CSS comment block starting at this position.
     // if there is no such block, don't do anything to the stream.
     stripCommentBlock: function() {
@@ -1131,8 +1150,12 @@
     // * `<` end of `<style>` element, start of `</style>`
     //   (ERROR: missing block closer)
     _parseValue: function(selector, selectorStart, property, propertyStart) {
-      var rule = this.stream.eatCSSWhile(/[^}<;]/),
-          token = this.stream.makeToken();
+      if(property === "content") {
+        this.stream.findContentEnd();
+      } else {
+        this.stream.eatCSSWhile(/[^}<;]/);
+      }
+      var token = this.stream.makeToken();
 
       if(token === null) {
         throw new ParseError("MISSING_CSS_VALUE", this, propertyStart, propertyStart+property.length, property);
@@ -1159,10 +1182,11 @@
         end: valueEnd
       };
 
+
       if ((this.stream.end() && next !== ';') || next === '<') {
-        throw new ParseError("UNFINISHED_CSS_VALUE", this, valueStart,
-                             valueEnd, value);
+        throw new ParseError("UNFINISHED_CSS_VALUE", this, valueStart,valueEnd, value);
       }
+
       //Add a new validator to check if there is mixed active content in css value
       if (checkMixedContent && value.match(/,?\s*url\(\s*['"]?http:\/\/.+\)/)) {
         valueStart = valueStart + value.indexOf('url');
@@ -1170,6 +1194,7 @@
           new ParseError("CSS_MIXED_ACTIVECONTENT", this, property, propertyStart, value, valueStart, valueEnd)
         );
       }
+
       if (next === ';') {
         // This is normal CSS rule termination; try to read a new
         // property/value pair.
