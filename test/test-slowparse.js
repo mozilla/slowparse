@@ -264,8 +264,6 @@ module.exports = function(Slowparse, window, document, validators) {
     equal(error.type, "INVALID_TAG_NAME");
   });
 
-  /*
-  // Commented off because of a "bug" in jsdom, see https://github.com/tmpvar/jsdom/issues/706
   test("parsing of HTML with void elements", function(){
     testManySnippets("parsing of HTML with void elements", [
       '<br>',
@@ -274,7 +272,6 @@ module.exports = function(Slowparse, window, document, validators) {
       equal(documentFragmentHTML(doc), html);
     });
   });
-  */
 
   test("parsing of text content w/ newlines", function(){
     testManySnippets("parsing of text content w/ newlines", [
