@@ -600,6 +600,19 @@
         }
       }
     },
+    // strip any CSS comment block starting at this position.
+    // if there is no such block, don't do anything to the stream.
+    stripCommentBlock: function() {
+      if (this.substream(2) !== "/*") return;
+      this.pos += 2;
+      for(;!this.end(); this.pos++) {
+        if(this.substream(2) === "*/") {
+          this.pos += 2;
+          break;
+        }
+      }
+      this.eatSpace();
+    },
     // `Stream.markTokenStart()` will set the start for the next token to
     // the current stream position (i.e., "where we are now").
     markTokenStart: function() {
@@ -868,7 +881,8 @@
         this.currentRule = null;
       }
 
-      this.stream.markTokenStartAfterSpace();
+      // skip over comments, if there is one at this position
+      this.stream.stripCommentBlock();
 
       // are we looking at an @block?
       if (this.stream.peek() === "@") {
@@ -879,12 +893,14 @@
         // we currently support @keyframes (with prefixes)
         if(name.match(/@(-[^-]+-)?keyframes/)) {
           this.stream.next();
+          this.nested = true;
           return this._parseSelector();
         }
 
         // and media queries
         if(name.match(/@media\s*\([^{)]+\)/)) {
           this.stream.next();
+          this.nested = true;
           return this._parseSelector();
         }
 
@@ -971,7 +987,10 @@
       // or whether we're in a terminal state, based on the
       // next character in the stream.
       if (this.stream.end() || peek === '<') {
-        throw new ParseError("UNFINISHED_CSS_SELECTOR", this, selectorStart, selectorEnd, selector);
+        if(!this.nested) {
+          throw new ParseError("UNFINISHED_CSS_SELECTOR", this, selectorStart, selectorEnd, selector);
+        }
+        return;
       }
 
       if (!this.stream.end()) {

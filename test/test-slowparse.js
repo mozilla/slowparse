@@ -657,6 +657,24 @@ module.exports = function(Slowparse, window, document, validators) {
     ok(!result.error, "@-*-keyframes accepted</p>");
   });
 
+  test("@keyframes css block with leading block comment", function() {
+    var html = "<style>/*\n  keyframe test\n*/\n@keyframes { 0% { opacity: 0; } 100% { opacity: 1.0; } } .test { opacity: 0; }</style>";
+    var result = parse(html);
+    ok(!result.error, "@keyframes accepted</p>");
+  });
+
+  test("@keyframes css block with trailing block comment", function() {
+    var html = "<style>\n@keyframes { 0% { opacity: 0; } 100% { opacity: 1.0; } } .test { opacity: 0; }\n/*\n  keyframe test\n*/\n</style>";
+    var result = parse(html);
+    ok(!result.error, "@keyframes accepted</p>");
+  });
+
+  test("@keyframes css block with leading and trailing block comment", function() {
+    var html = "<style>/*\n  keyframe test\n*/\n@keyframes { 0% { opacity: 0; } 100% { opacity: 1.0; } } .test { opacity: 0; }\n/*\n  keyframe test\n*/\n</style>";
+    var result = parse(html);
+    ok(!result.error, "@keyframes accepted</p>");
+  });
+
   test("@media rule", function() {
     var html = "<style>@media (max-width: 100px) { .class { background: white; } }</style>";
     var result = parse(html);
