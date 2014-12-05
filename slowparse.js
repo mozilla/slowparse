@@ -1606,16 +1606,18 @@
             this.domBuilder.text(cssBlock.value, cssBlock.parseInfo);
           }
 
-          // If the opening tag represents a `<textarea>` element, we need
-          // to parse all its contents as CDATA (unparsed character data)
+          // If the opening tag represents a `<script>` element, we need
+          // to parse all its contents as CDATA (unparsed character data),
+          // marked as representing javascript source code.
           if (tagName && tagName === "script") {
             this.domBuilder.pushContext("javascript", this.stream.pos);
             this._parseCDATA("script");
             this.domBuilder.pushContext("html", this.stream.pos);
           }
 
-          // If the opening tag represents a `<textarea>` element, we need
-          // to parse all its contents as CDATA (unparsed character data)
+          // If the opening tag represents a `<textarea>` element, we also need
+          // to parse all its contents as CDATA (unparsed character data), but
+          // marked as representing plain text.
           if (tagName && tagName === "textarea") {
             this.domBuilder.pushContext("text", this.stream.pos);
             this._parseCDATA("textarea");
