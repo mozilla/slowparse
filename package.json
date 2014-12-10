@@ -1,13 +1,13 @@
 {
   "name": "slowparse",
-  "version": "1.0.1",
+  "version": "1.1.1",
   "description": "Slowparse is a token stream parser for HTML and CSS text, recording regions of interest during the parse run and signaling any errors detected accompanied by relevant regions in the text stream, to make debugging easy.",
   "main": "slowparse.js",
   "directories": {
     "test": "test"
   },
   "scripts": {
-    "test": "node test.js"
+    "test": "browserify index.js -o slowparse.js --standalone Slowparse & node test.js"
   },
   "repository": {
     "type": "git",
