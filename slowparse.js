@@ -1,3 +1,4 @@
+!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.Slowparse=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 // Slowparse is a token stream parser for HTML and CSS text,
 // recording regions of interest during the parse run and
 // signaling any errors detected accompanied by relevant
@@ -26,680 +27,123 @@
 (function() {
   "use strict";
 
-  // ### Character Entity Parsing
+  var Stream = require("./src/Stream");
+  var CSSParser = require("./src/CSSParser");
+  var HTMLParser = require("./src/HTMLParser");
+  var DOMBuilder = require("./src/DOMBuilder");
+
+  // ### Exported Symbols
   //
-  // We currently only parse the most common named character entities.
-  var CHARACTER_ENTITY_REFS = {
-    lt: "<",
-    gt: ">",
-    apos: "'",
-    quot: '"',
-    amp: "&"
+  // `Slowparse` is the object that holds all exported symbols from
+  // this library.
+  var Slowparse = {
+    // We export our list of recognized HTML elements and CSS properties
+    // for clients to use if needed.
+    HTML_ELEMENT_NAMES: HTMLParser.prototype.voidHtmlElements.concat(
+                          HTMLParser.prototype.htmlElements.concat(
+                            HTMLParser.prototype.obsoleteHtmlElements)),
+    CSS_PROPERTY_NAMES: CSSParser.prototype.cssProperties,
+
+    // We also export a few internal symbols for use by Slowparse's
+    // testing suite.
+    replaceEntityRefs: HTMLParser.replaceEntityRefs,
+    Stream: Stream,
+
+    // `Slowparse.HTML()` is the primary function we export. Given
+    // a DOM document object (or a DOMBuilder instance) and a string
+    // of HTML, we return an object with the following keys:
+    //
+    // * `document` is a DOM document fragment containing the DOM of
+    //   the parsed HTML. If an error occurred while parsing, this
+    //   document is incomplete, and represents what was built before
+    //   the error was encountered.
+    //
+    // * `error` is a JSON-serializable object representing any error
+    //   that occurred while parsing. If no errors occurred while parsing,
+    //   its value is `null`. For a list of the types of errors that
+    //   can be returned, see the [error specification][].
+    //
+    // An array of error detector functions can also be passed as a
+    // third argument to this function. An error detector function takes
+    // the HTML and generated document fragment as arguments and returns
+    // an error object if an error is detected, or `undefined` otherwise.
+    // This can be used for further error checking on the parsed document.
+    //
+    //   [error specification]: spec/
+    HTML: function(document, html, options) {
+      options = options || {};
+      var stream = new Stream(html),
+          domBuilder,
+          parser,
+          warnings = null,
+          error = null,
+          errorDetectors = options.errorDetectors || [],
+          disallowActiveAttributes = (typeof options.disallowActiveAttributes === "undefined") ? false : options.disallowActiveAttributes;
+
+      domBuilder = new DOMBuilder(document, disallowActiveAttributes);
+      parser = new HTMLParser(stream, domBuilder);
+
+      try {
+        var _ = parser.parse();
+        if (_.warnings) {
+          warnings = _.warnings;
+        }
+      } catch (e) {
+        if (e.parseInfo) {
+          error = e.parseInfo;
+        } else
+          throw e;
+      }
+
+      errorDetectors.forEach(function(detector) {
+        if (!error)
+          error = detector(html, domBuilder.fragment) || null;
+      });
+
+      return {
+        document: domBuilder.fragment,
+        contexts: domBuilder.contexts,
+        warnings: warnings,
+        error: error
+      };
+    },
+    // `Slowparse.findError()` just returns any error in the given HTML
+    // string, or `null` if the HTML contains no errors.
+    findError: function(html, errorDetectors) {
+      return this.HTML(document, html, errorDetectors).error;
+    }
   };
 
-  // HTML attribute parsing rules are based on
-  // http://www.w3.org/TR/2011/WD-html5-20110525/elements.html#attr-data
-  // -> ref http://www.w3.org/TR/2011/WD-html5-20110525/infrastructure.html#xml-compatible
-  //    -> ref http://www.w3.org/TR/REC-xml/#NT-NameChar
-  // note: this lacks the final \\u10000-\\uEFFFF in the startchar set, because JavaScript
-  //       cannot cope with unciode characters with points over 0xFFFF.
-  var attributeNameStartChar = "A-Za-z_\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD";
-  var nameStartChar = new RegExp("[" + attributeNameStartChar + "]");
-  var attributeNameChar = attributeNameStartChar + "0-9\\-\\.\\u00B7\\u0300-\\u036F\\u203F-\\u2040:";
-  var nameChar = new RegExp("[" + attributeNameChar + "]");
+  // AMD context
+  if (typeof define !== "undefined") {
+    define(function() { return Slowparse; });
+  }
+
+  // Node.js context
+  else if(typeof module !== "undefined" && module.exports) {
+    module.exports = Slowparse;
+  }
+
+  // browser context
+  else if (typeof window !== "undefined") {
+    window.Slowparse = Slowparse;
+  }
+}());
+
+},{"./src/CSSParser":2,"./src/DOMBuilder":3,"./src/HTMLParser":4,"./src/Stream":7}],2:[function(require,module,exports){
+// ### CSS Parsing
+//
+// `CSSParser` is our internal CSS token stream parser object. This object
+// has references to the stream, as well as the HTML DOM builder that is
+// used by the HTML parser.
+module.exports = (function(){
+  "use strict";
+
+  var ParseError = require("./ParseError");
 
   //Define a property checker for https page
-  var checkMixedContent = (typeof window !== "undefined" ? (window.location.protocol === "https:") : false);
+  var checkMixedContent = require("./checkMixedContent").mixedContent;
 
-  //Define activeContent with tag-attribute pairs
-  function isActiveContent (tagName, attrName) {
-    if (attrName === "href") {
-      return ["link"].indexOf(tagName) > -1;
-    }
-    if (attrName === "src") {
-      return ["script", "iframe"].indexOf(tagName) > -1;
-    }
-    if (attrName === "data") {
-      return ["object"].indexOf(tagName) > -1;
-    }
-    return false;
-  }
-
-  // the current active omittable html Element
-  var activeTagNode = false;
-
-  // the parent html Element for optional closing tag tags
-  var parentTagNode = false;
-
-  // 'foresee' if there is no more content in the parent element, and the
-  // parent element is not an a element in the case of activeTag is a p element.
-  function isNextTagParent(stream, parentTagName) {
-    return stream.findNext(/<\/([\w\-]+)\s*>/, 1) === parentTagName;
-  }
-
-  // 'foresee' if the next tag is a close tag
-  function isNextCloseTag(stream) {
-    return stream.findNext(/<\/([\w\-]+)\s*>/, 1);
-  }
-
-  // Check exception for Tag omission rules: for p tag, if there is no more
-  // content in the parent element and the parent element is not an a element.
-  function allowsOmmitedEndTag(parentTagName, tagName) {
-    if (tagName === "p") {
-      return ["a"].indexOf(parentTagName) > -1;
-    }
-    return false;
-  }
-
-  // `replaceEntityRefs()` will replace named character entity references
-  // (e.g. `&lt;`) in the given text string and return the result. If an
-  // entity name is unrecognized, don't replace it at all. Writing HTML
-  // would be surprisingly painful without this forgiving behavior.
-  //
-  // This function does not currently replace numeric character entity
-  // references (e.g., `&#160;`).
-  function replaceEntityRefs(text) {
-    return text.replace(/&([A-Za-z]+);/g, function(ref, name) {
-      name = name.toLowerCase();
-      if (name in CHARACTER_ENTITY_REFS)
-        return CHARACTER_ENTITY_REFS[name];
-      return ref;
-    });
-  }
-
-
-  // ### Errors
-  //
-  // `ParseError` is an internal error class used to indicate a parsing error.
-  // It never gets seen by Slowparse clients, as parse errors are an
-  // expected occurrence. However, they are used internally to simplify
-  // flow control.
-  //
-  // The first argument is the name of an error type, followed by
-  // arbitrary positional arguments specific to that error type. Every
-  // instance has a `parseInfo` property which contains the error
-  // object that will be exposed to Slowparse clients when parsing errors
-  // occur.
-  function ParseError(type) {
-    this.name = "ParseError";
-    if (!(type in ParseErrorBuilders))
-      throw new Error("Unknown ParseError type: " + type);
-    var args = [];
-    for (var i = 1; i < arguments.length; i++)
-      args.push(arguments[i]);
-    var parseInfo = ParseErrorBuilders[type].apply(ParseErrorBuilders, args);
-
-    /* This may seem a weird way of setting an attribute, but we want
-     * to make the JSON serialize so the 'type' appears first, as it
-     * makes our documentation read better. */
-    parseInfo = ParseErrorBuilders._combine({
-      type: type
-    }, parseInfo);
-    this.message = type;
-    this.parseInfo = parseInfo;
-  }
-
-  ParseError.prototype = Error.prototype;
-
-  // `ParseErrorBuilders` contains Factory functions for all our types of
-  // parse errors, indexed by error type.
-  //
-  // Each public factory function returns a `parseInfo` object, sans the
-  // `type` property. For more information on each type of error,
-  // see the [error specification][].
-  //
-  //   [error specification]: spec/
-  var ParseErrorBuilders = {
-    /* Create a new object that has the properties of both arguments
-     * and return it. */
-    _combine: function(a, b) {
-      var obj = {}, name;
-      for (name in a) {
-        obj[name] = a[name];
-      }
-      for (name in b) {
-        obj[name] = b[name];
-      }
-      return obj;
-    },
-    // These are HTML errors.
-    UNCLOSED_TAG: function(parser) {
-      var currentNode = parser.domBuilder.currentNode,
-          openTag = this._combine({
-            name: currentNode.nodeName.toLowerCase()
-          }, currentNode.parseInfo.openTag);
-      return {
-        openTag: openTag,
-        cursor: openTag.start
-      };
-    },
-    INVALID_TAG_NAME: function(tagName, token) {
-      var openTag = this._combine({
-            name: tagName
-          }, token.interval);
-      return {
-        openTag: openTag,
-        cursor: openTag.start
-      };
-    },
-    UNEXPECTED_CLOSE_TAG: function(parser, closeTagName, token) {
-      var closeTag = this._combine({
-            name: closeTagName
-          }, token.interval);
-      return {
-        closeTag: closeTag,
-        cursor: closeTag.start
-      };
-    },
-    MISMATCHED_CLOSE_TAG: function(parser, openTagName, closeTagName, token) {
-      var openTag = this._combine({
-            name: openTagName
-          }, parser.domBuilder.currentNode.parseInfo.openTag),
-          closeTag = this._combine({
-            name: closeTagName
-          }, token.interval);
-      return {
-        openTag: openTag,
-        closeTag: closeTag,
-        cursor: closeTag.start
-      };
-    },
-    ATTRIBUTE_IN_CLOSING_TAG: function(parser) {
-      var currentNode = parser.domBuilder.currentNode;
-      var end = parser.stream.pos;
-      if (!parser.stream.end()) {
-        end = parser.stream.makeToken().interval.start;
-      }
-      var closeTag = {
-        name: currentNode.nodeName.toLowerCase(),
-        start: currentNode.parseInfo.closeTag.start,
-        end: end
-      };
-      return {
-        closeTag: closeTag,
-        cursor: closeTag.start
-      };
-    },
-    CLOSE_TAG_FOR_VOID_ELEMENT: function(parser, closeTagName, token) {
-      var closeTag = this._combine({
-            name: closeTagName
-          }, token.interval);
-      return {
-        closeTag: closeTag,
-        cursor: closeTag.start
-      };
-    },
-    UNTERMINATED_COMMENT: function(token) {
-      var commentStart = token.interval.start;
-      return {
-        start: commentStart,
-        cursor: commentStart
-      };
-    },
-    UNTERMINATED_ATTR_VALUE: function(parser, nameTok) {
-      var currentNode = parser.domBuilder.currentNode,
-          openTag = this._combine({
-            name: currentNode.nodeName.toLowerCase()
-          }, currentNode.parseInfo.openTag),
-          valueTok = parser.stream.makeToken(),
-          attribute = {
-            name: {
-              value: nameTok.value,
-              start: nameTok.interval.start,
-              end: nameTok.interval.end
-            },
-            value: {
-              start: valueTok.interval.start
-            }
-          };
-      return {
-        openTag: openTag,
-        attribute: attribute,
-        cursor: attribute.value.start
-      };
-    },
-    UNQUOTED_ATTR_VALUE: function(parser) {
-      var pos = parser.stream.pos;
-      if (!parser.stream.end()) {
-        pos = parser.stream.makeToken().interval.start;
-      }
-      return {
-        start: pos,
-        cursor: pos
-      };
-    },
-    INVALID_ATTR_NAME: function(parser, attrToken) {
-      return {
-        start: attrToken.interval.start,
-        end: attrToken.interval.end,
-        attribute: {
-          name: {
-            value: attrToken.value
-          }
-        },
-        cursor: attrToken.interval.start
-      };
-    },
-    MULTIPLE_ATTR_NAMESPACES: function(parser, attrToken) {
-      return {
-        start: attrToken.interval.start,
-        end: attrToken.interval.end,
-        attribute: {
-          name: {
-            value: attrToken.value
-          }
-        },
-        cursor: attrToken.interval.start
-      };
-    },
-    UNSUPPORTED_ATTR_NAMESPACE: function(parser, attrToken) {
-      return {
-        start: attrToken.interval.start,
-        end: attrToken.interval.end,
-        attribute: {
-          name: {
-            value: attrToken.value
-          }
-        },
-        cursor: attrToken.interval.start
-      };
-    },
-    UNTERMINATED_OPEN_TAG: function(parser) {
-      var currentNode = parser.domBuilder.currentNode,
-          openTag = {
-            start: currentNode.parseInfo.openTag.start,
-            end: parser.stream.pos,
-            name: currentNode.nodeName.toLowerCase()
-          };
-      return {
-        openTag: openTag,
-        cursor: openTag.start
-      };
-    },
-    SELF_CLOSING_NON_VOID_ELEMENT: function(parser, tagName) {
-      var start = parser.domBuilder.currentNode.parseInfo.openTag.start,
-          end = parser.stream.makeToken().interval.end;
-      return {
-        name: tagName,
-        start: start,
-        end: end,
-        cursor: start
-      };
-    },
-    UNTERMINATED_CLOSE_TAG: function(parser) {
-      var currentNode = parser.domBuilder.currentNode;
-      var end = parser.stream.pos;
-      if (!parser.stream.end()) {
-        end = parser.stream.makeToken().interval.start;
-      }
-      var closeTag = {
-            name: currentNode.nodeName.toLowerCase(),
-            start: currentNode.parseInfo.closeTag.start,
-            end: end
-          };
-      return {
-        closeTag: closeTag,
-        cursor: closeTag.start
-      };
-    },
-    //Special error type for a http link does not work in a https page
-    HTTP_LINK_FROM_HTTPS_PAGE: function(parser, nameTok, valueTok) {
-      var currentNode = parser.domBuilder.currentNode,
-          openTag = this._combine({
-            name: currentNode.nodeName.toLowerCase()
-          }, currentNode.parseInfo.openTag),
-          attribute = {
-            name: {
-              value: nameTok.value,
-              start: nameTok.interval.start,
-              end: nameTok.interval.end
-            },
-            value: {
-              start: valueTok.interval.start + 1,
-              end: valueTok.interval.end - 1
-            }
-          };
-      return {
-        openTag: openTag,
-        attribute: attribute,
-        cursor: attribute.value.start
-      };
-    },
-    // These are CSS errors.
-    UNKOWN_CSS_KEYWORD: function(parser, start, end, value) {
-      return {
-        cssKeyword: {
-          start: start,
-          end: end,
-          value: value
-        },
-        cursor: start
-      };
-    },
-    MISSING_CSS_SELECTOR: function(parser, start, end) {
-      return {
-        cssBlock: {
-          start: start,
-          end: end
-        },
-        cursor: start
-      };
-    },
-    UNFINISHED_CSS_SELECTOR: function(parser, start, end, selector) {
-      return {
-        cssSelector: {
-          start: start,
-          end: end,
-          selector: selector
-        },
-        cursor: start
-      };
-    },
-    MISSING_CSS_BLOCK_OPENER: function(parser, start, end, selector) {
-      return {
-        cssSelector: {
-          start: start,
-          end: end,
-          selector: selector
-        },
-        cursor: start
-      };
-    },
-    INVALID_CSS_PROPERTY_NAME: function(parser, start, end, property) {
-      return {
-        cssProperty: {
-          start: start,
-          end: end,
-          property: property
-        },
-        cursor: start
-      };
-    },
-    MISSING_CSS_PROPERTY: function(parser, start, end, selector) {
-      return {
-        cssSelector: {
-          start: start,
-          end: end,
-          selector: selector
-        },
-        cursor: start
-      };
-    },
-    UNFINISHED_CSS_PROPERTY: function(parser, start, end, property) {
-      return {
-        cssProperty: {
-          start: start,
-          end: end,
-          property: property
-        },
-        cursor: start
-      };
-    },
-    MISSING_CSS_VALUE: function(parser, start, end, property) {
-      return {
-        cssProperty: {
-          start: start,
-          end: end,
-          property: property
-        },
-        cursor: start
-      };
-    },
-    UNFINISHED_CSS_VALUE: function(parser, start, end, value) {
-      return {
-        cssValue: {
-          start: start,
-          end: end,
-          value: value
-        },
-        cursor: start
-      };
-    },
-    CSS_MIXED_ACTIVECONTENT: function(parser, property, propertyStart, value, valueStart, valueEnd) {
-      var cssProperty = {
-            property: property,
-            start: propertyStart,
-            end: propertyStart + property.length
-          },
-          cssValue = {
-            value: value,
-            start: valueStart,
-            end: valueEnd
-          };
-      return {
-        cssProperty: cssProperty,
-        cssValue: cssValue,
-        cursor: cssValue.start
-      };
-    },
-    MISSING_CSS_BLOCK_CLOSER: function(parser, start, end, value) {
-      return {
-        cssValue: {
-          start: start,
-          end: end,
-          value: value
-        },
-        cursor: start
-      };
-    },
-    UNCAUGHT_CSS_PARSE_ERROR: function(parser, start, end, msg) {
-      return {
-        error: {
-          start: start,
-          end: end,
-          msg: msg
-        },
-        cursor: start
-      };
-    },
-    UNTERMINATED_CSS_COMMENT: function(start) {
-      return {
-        start: start,
-        cursor: start
-      };
-    },
-    HTML_CODE_IN_CSS_BLOCK: function(parser, start, end) {
-      return {
-        html: {
-          start: start,
-          end: end
-        },
-        cursor: start
-      };
-    }
-  };
-
-  // ### Streams
-  //
-  // `Stream` is an internal class used for tokenization. The interface for
-  // this class is inspired by the analogous class in [CodeMirror][].
-  //
-  //   [CodeMirror]: http://codemirror.net/doc/manual.html#modeapi
-  function Stream(text) {
-    this.text = text;
-    this.pos = 0;
-    this.tokenStart = 0;
-  }
-
-  Stream.prototype = {
-    // `Stream.peek()` returns the next character in the stream without
-    // advancing it. It will return `undefined` at the end of the text.
-    peek: function() {
-      return this.text[this.pos];
-    },
-    // `Stream.substream(len)` returns a substream from the stream
-    // without advancing it, with length `len`.
-    substream: function(len) {
-      return this.text.substring(this.pos, this.pos + len);
-    },
-    // `Stream.next()` returns the next character in the stream and advances
-    // it. It also returns `undefined` when no more characters are available.
-    next: function() {
-      if (!this.end())
-        return this.text[this.pos++];
-    },
-    // `Stream.rewind()` rewinds the stream position by X places.
-    rewind: function(x) {
-      this.pos -= x;
-      if (this.pos < 0) {
-        this.pos = 0;
-      }
-    },
-    // `Stream.end()` returns true only if the stream is at the end of the
-    // text.
-    end: function() {
-      return (this.pos == this.text.length);
-    },
-    // `Stream.eat()` takes a regular expression. If the next character in
-    // the stream matches the given argument, it is consumed and returned.
-    // Otherwise, `undefined` is returned.
-    eat: function(match) {
-      if (!this.end() && this.peek().match(match))
-        return this.next();
-    },
-    // `Stream.eatWhile()` repeatedly calls `eat()` with the given argument,
-    // until it fails. Returns `true` if any characters were eaten.
-    eatWhile: function(matcher) {
-      var wereAnyEaten = false;
-      while (!this.end()) {
-        if (this.eat(matcher))
-          wereAnyEaten = true;
-        else
-          return wereAnyEaten;
-      }
-    },
-    // `Stream.eatSpace()` is a shortcut for `eatWhile()` when matching
-    // white-space (including newlines).
-    eatSpace: function() {
-      return this.eatWhile(/[\s\n]/);
-    },
-    // `Stream.eatCSSWhile()` is like `eatWhile()`, but it
-    // automatically deals with eating block comments like `/* foo */`.
-    eatCSSWhile: function(matcher) {
-      var wereAnyEaten = false,
-          chr = '',
-          peek = '',
-          next = '';
-      while (!this.end()) {
-        chr = this.eat(matcher);
-        if (chr)
-          wereAnyEaten = true;
-        else
-          return wereAnyEaten;
-        if (chr === '/') {
-          peek = this.peek();
-          if (peek === '*') {
-            /* Block comment found. Gobble until resolved. */
-            while(next !== '/' && !this.end()) {
-              this.eatWhile(/[^*]/);
-              this.next();
-              next = this.next();
-            }
-            next = '';
-          }
-        }
-      }
-    },
-    // CSS content values terminate on ; only when that ; is not
-    // inside a quoted string.
-    findContentEnd: function() {
-      var quoted = false,
-          c, _c;
-      while(!this.end()) {
-        c = this.next();
-        if (c === '"' || c === "'") {
-          if (quoted === false) quoted = c;
-          else if (quoted === c && _c !== "\\") quoted = false;
-          continue;
-        }
-        if (c === ';' && quoted === false) {
-          break;
-        }
-        _c = c;
-      }
-      this.pos--;
-    },
-    // strip any CSS comment block starting at this position.
-    // if there is no such block, don't do anything to the stream.
-    stripCommentBlock: function() {
-      if (this.substream(2) !== "/*") return;
-      this.pos += 2;
-      for(;!this.end(); this.pos++) {
-        if(this.substream(2) === "*/") {
-          this.pos += 2;
-          break;
-        }
-      }
-      this.eatSpace();
-    },
-    // `Stream.markTokenStart()` will set the start for the next token to
-    // the current stream position (i.e., "where we are now").
-    markTokenStart: function() {
-      this.tokenStart = this.pos;
-    },
-    // `Stream.markTokenStartAfterSpace()` is a wrapper function for eating
-    // up space, then marking the start for a new token.
-    markTokenStartAfterSpace: function() {
-      this.eatSpace();
-      this.markTokenStart();
-    },
-    // `Stream.makeToken()` generates a JSON-serializable token object
-    // representing the interval of text between the end of the last
-    // generated token and the current stream position.
-    makeToken: function() {
-      if (this.pos == this.tokenStart)
-        return null;
-      var token = {
-        value: this.text.slice(this.tokenStart, this.pos),
-        interval: {
-          start: this.tokenStart,
-          end: this.pos
-        }
-      };
-      this.tokenStart = this.pos;
-      return token;
-    },
-    // `Stream.match()` acts like a multi-character eat—if *consume* is `true`
-    // or not given—or a look-ahead that doesn't update the stream
-    // position—if it is `false`. *string* must be a string. *caseFold* can
-    // be set to `true` to make the match case-insensitive.
-    match: function(string, consume, caseFold) {
-      var substring = this.text.slice(this.pos, this.pos + string.length);
-      if (caseFold) {
-        string = string.toLowerCase();
-        substring = substring.toLowerCase();
-      }
-      if (string == substring) {
-        if (consume)
-          this.pos += string.length;
-        return true;
-      }
-      return false;
-    },
-    // `Stream.findNext()` is a look-ahead match that doesn't update the stream position
-    // by a given regular expression
-    findNext: function(pattern, groupNumber) {
-      var currentPos = this.pos;
-      this.eatWhile(/[^>]/);
-      this.next();
-      var nextPos = this.pos;
-      this.pos = currentPos;
-      var token = this.substream(nextPos - currentPos);
-      var captureGroups = token.match(pattern);
-      this.pos = currentPos;
-      if(captureGroups) {
-        return captureGroups[groupNumber];
-      }
-      return false;
-    }
-  };
-
-
-  // ### CSS Parsing
-  //
-  // `CSSParser` is our internal CSS token stream parser object. This object
-  // has references to the stream, as well as the HTML DOM builder that is
-  // used by the HTML parser.
   function CSSParser(stream, domBuilder, warnings) {
     this.stream = stream;
     this.domBuilder = domBuilder;
@@ -1221,18 +665,185 @@
     }
   };
 
+  return CSSParser;
 
-  // ### HTML Parsing
+}());
+
+},{"./ParseError":5,"./checkMixedContent":8}],3:[function(require,module,exports){
+  // ### The DOM Builder
   //
-  // The HTML token stream parser object has references to the stream,
-  // as well as a DOM builder that is used to construct the DOM while we
-  // run through the token stream.
+  // The DOM builder is used to construct a DOM representation of the
+  // HTML/CSS being parsed. Each node contains a `parseInfo` expando
+  // property that contains information about the text extents of the
+  // original source code that the DOM element maps to.
+  //
+  // The DOM builder is given a single document DOM object that will
+  // be used to create all necessary DOM nodes.
+module.exports = (function(){
+  "use strict";
+
+  function DOMBuilder(document, disallowActiveAttributes) {
+    this.document = document;
+    this.fragment = document.createDocumentFragment();
+    this.currentNode = this.fragment;
+    this.contexts = [];
+    this.pushContext("html", 0);
+    this.disallowActiveAttributes = disallowActiveAttributes;
+  }
+
+  DOMBuilder.prototype = {
+    // This method pushes a new element onto the DOM builder's stack.
+    // The element is appended to the currently active element and is
+    // then made the new currently active element.
+    pushElement: function(tagName, parseInfo, nameSpace) {
+      var node = (nameSpace ? this.document.createElementNS(nameSpace,tagName)
+                            : this.document.createElement(tagName));
+      node.parseInfo = parseInfo;
+      this.currentNode.appendChild(node);
+      this.currentNode = node;
+    },
+    // This method pops the current element off the DOM builder's stack,
+    // making its parent element the currently active element.
+    popElement: function() {
+      this.currentNode = this.currentNode.parentNode;
+    },
+    // record the cursor position for a context change (text/html/css/script)
+    pushContext: function(context, position) {
+      this.contexts.push({
+        context: context,
+        position: position
+      });
+    },
+    // This method appends an HTML comment node to the currently active
+    // element.
+    comment: function(data, parseInfo) {
+      var comment = this.document.createComment('');
+      comment.nodeValue = data;
+      comment.parseInfo = parseInfo;
+      this.currentNode.appendChild(comment);
+    },
+    // This method appends an attribute to the currently active element.
+    attribute: function(name, value, parseInfo) {
+      var attrNode = this.document.createAttribute(name);
+      attrNode.parseInfo = parseInfo;
+      if (this.disallowActiveAttributes && name.substring(0,2).toLowerCase() === "on") {
+        attrNode.nodeValue = "";
+      } else {
+        attrNode.nodeValue = value;
+      }
+      this.currentNode.attributes.setNamedItem(attrNode);
+    },
+    // This method appends a text node to the currently active element.
+    text: function(text, parseInfo) {
+      var textNode = this.document.createTextNode(text);
+      textNode.parseInfo = parseInfo;
+      this.currentNode.appendChild(textNode);
+    }
+  };
+
+  return DOMBuilder;
+
+}());
+
+},{}],4:[function(require,module,exports){
+// ### HTML Parsing
+//
+// The HTML token stream parser object has references to the stream,
+// as well as a DOM builder that is used to construct the DOM while we
+// run through the token stream.
+module.exports = (function(){
+  "use strict";
+
+  var ParseError = require("./ParseError");
+  var CSSParser = require("./CSSParser");
+
+  // ### Character Entity Parsing
+  //
+  // We currently only parse the most common named character entities.
+  var CHARACTER_ENTITY_REFS = {
+    lt: "<",
+    gt: ">",
+    apos: "'",
+    quot: '"',
+    amp: "&"
+  };
+
+  // HTML attribute parsing rules are based on
+  // http://www.w3.org/TR/2011/WD-html5-20110525/elements.html#attr-data
+  // -> ref http://www.w3.org/TR/2011/WD-html5-20110525/infrastructure.html#xml-compatible
+  //    -> ref http://www.w3.org/TR/REC-xml/#NT-NameChar
+  // note: this lacks the final \\u10000-\\uEFFFF in the startchar set, because JavaScript
+  //       cannot cope with unciode characters with points over 0xFFFF.
+  var attributeNameStartChar = "A-Za-z_\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD";
+  var nameStartChar = new RegExp("[" + attributeNameStartChar + "]");
+  var attributeNameChar = attributeNameStartChar + "0-9\\-\\.\\u00B7\\u0300-\\u036F\\u203F-\\u2040:";
+  var nameChar = new RegExp("[" + attributeNameChar + "]");
+
+  //Define a property checker for https page
+  var checkMixedContent = require("./checkMixedContent").mixedContent;
+
+  //Define activeContent with tag-attribute pairs
+  function isActiveContent (tagName, attrName) {
+    if (attrName === "href") {
+      return ["link"].indexOf(tagName) > -1;
+    }
+    if (attrName === "src") {
+      return ["script", "iframe"].indexOf(tagName) > -1;
+    }
+    if (attrName === "data") {
+      return ["object"].indexOf(tagName) > -1;
+    }
+    return false;
+  }
+
+  // the current active omittable html Element
+  var activeTagNode = false;
+
+  // the parent html Element for optional closing tag tags
+  var parentTagNode = false;
+
+  // 'foresee' if there is no more content in the parent element, and the
+  // parent element is not an a element in the case of activeTag is a p element.
+  function isNextTagParent(stream, parentTagName) {
+    return stream.findNext(/<\/([\w\-]+)\s*>/, 1) === parentTagName;
+  }
+
+  // 'foresee' if the next tag is a close tag
+  function isNextCloseTag(stream) {
+    return stream.findNext(/<\/([\w\-]+)\s*>/, 1);
+  }
+
+  // Check exception for Tag omission rules: for p tag, if there is no more
+  // content in the parent element and the parent element is not an a element.
+  function allowsOmmitedEndTag(parentTagName, tagName) {
+    if (tagName === "p") {
+      return ["a"].indexOf(parentTagName) > -1;
+    }
+    return false;
+  }
+
   function HTMLParser(stream, domBuilder) {
     this.warnings = [];
     this.stream = stream;
     this.domBuilder = domBuilder;
     this.cssParser = new CSSParser(stream, domBuilder, this.warnings);
   }
+
+  // `replaceEntityRefs()` will replace named character entity references
+  // (e.g. `&lt;`) in the given text string and return the result. If an
+  // entity name is unrecognized, don't replace it at all. Writing HTML
+  // would be surprisingly painful without this forgiving behavior.
+  //
+  // This function does not currently replace numeric character entity
+  // references (e.g., `&#160;`).
+  function replaceEntityRefs(text) {
+    return text.replace(/&([A-Za-z]+);/g, function(ref, name) {
+      name = name.toLowerCase();
+      if (name in CHARACTER_ENTITY_REFS)
+        return CHARACTER_ENTITY_REFS[name];
+      return ref;
+    });
+  };
 
   HTMLParser.prototype = {
     // since SVG requires a slightly different code path,
@@ -1606,18 +1217,16 @@
             this.domBuilder.text(cssBlock.value, cssBlock.parseInfo);
           }
 
-          // If the opening tag represents a `<script>` element, we need
-          // to parse all its contents as CDATA (unparsed character data),
-          // marked as representing javascript source code.
+          // If the opening tag represents a `<textarea>` element, we need
+          // to parse all its contents as CDATA (unparsed character data)
           if (tagName && tagName === "script") {
             this.domBuilder.pushContext("javascript", this.stream.pos);
             this._parseCDATA("script");
             this.domBuilder.pushContext("html", this.stream.pos);
           }
 
-          // If the opening tag represents a `<textarea>` element, we also need
-          // to parse all its contents as CDATA (unparsed character data), but
-          // marked as representing plain text.
+          // If the opening tag represents a `<textarea>` element, we need
+          // to parse all its contents as CDATA (unparsed character data)
           if (tagName && tagName === "textarea") {
             this.domBuilder.pushContext("text", this.stream.pos);
             this._parseCDATA("textarea");
@@ -1717,168 +1326,628 @@
     }
   };
 
-  // ### The DOM Builder
-  //
-  // The DOM builder is used to construct a DOM representation of the
-  // HTML/CSS being parsed. Each node contains a `parseInfo` expando
-  // property that contains information about the text extents of the
-  // original source code that the DOM element maps to.
-  //
-  // The DOM builder is given a single document DOM object that will
-  // be used to create all necessary DOM nodes.
-  function DOMBuilder(document, disallowActiveAttributes) {
-    this.document = document;
-    this.fragment = document.createDocumentFragment();
-    this.currentNode = this.fragment;
-    this.contexts = [];
-    this.pushContext("html", 0);
-    this.disallowActiveAttributes = disallowActiveAttributes;
+  HTMLParser.replaceEntityRefs = replaceEntityRefs;
+
+  return HTMLParser;
+}());
+},{"./CSSParser":2,"./ParseError":5,"./checkMixedContent":8}],5:[function(require,module,exports){
+// ### Errors
+//
+// `ParseError` is an internal error class used to indicate a parsing error.
+// It never gets seen by Slowparse clients, as parse errors are an
+// expected occurrence. However, they are used internally to simplify
+// flow control.
+//
+// The first argument is the name of an error type, followed by
+// arbitrary positional arguments specific to that error type. Every
+// instance has a `parseInfo` property which contains the error
+// object that will be exposed to Slowparse clients when parsing errors
+// occur.
+module.exports = (function() {
+  "use strict";
+
+  var ParseErrorBuilders = require("./ParseErrorBuilders");
+
+  function ParseError(type) {
+    this.name = "ParseError";
+    if (!(type in ParseErrorBuilders))
+      throw new Error("Unknown ParseError type: " + type);
+    var args = [];
+    for (var i = 1; i < arguments.length; i++)
+      args.push(arguments[i]);
+    var parseInfo = ParseErrorBuilders[type].apply(ParseErrorBuilders, args);
+
+    /* This may seem a weird way of setting an attribute, but we want
+     * to make the JSON serialize so the 'type' appears first, as it
+     * makes our documentation read better. */
+    parseInfo = ParseErrorBuilders._combine({
+      type: type
+    }, parseInfo);
+    this.message = type;
+    this.parseInfo = parseInfo;
   }
 
-  DOMBuilder.prototype = {
-    // This method pushes a new element onto the DOM builder's stack.
-    // The element is appended to the currently active element and is
-    // then made the new currently active element.
-    pushElement: function(tagName, parseInfo, nameSpace) {
-      var node = (nameSpace ? this.document.createElementNS(nameSpace,tagName)
-                            : this.document.createElement(tagName));
-      node.parseInfo = parseInfo;
-      this.currentNode.appendChild(node);
-      this.currentNode = node;
-    },
-    // This method pops the current element off the DOM builder's stack,
-    // making its parent element the currently active element.
-    popElement: function() {
-      this.currentNode = this.currentNode.parentNode;
-    },
-    // record the cursor position for a context change (text/html/css/script)
-    pushContext: function(context, position) {
-      this.contexts.push({
-        context: context,
-        position: position
-      });
-    },
-    // This method appends an HTML comment node to the currently active
-    // element.
-    comment: function(data, parseInfo) {
-      var comment = this.document.createComment('');
-      comment.nodeValue = data;
-      comment.parseInfo = parseInfo;
-      this.currentNode.appendChild(comment);
-    },
-    // This method appends an attribute to the currently active element.
-    attribute: function(name, value, parseInfo) {
-      var attrNode = this.document.createAttribute(name);
-      attrNode.parseInfo = parseInfo;
-      if (this.disallowActiveAttributes && name.substring(0,2).toLowerCase() === "on") {
-        attrNode.nodeValue = "";
-      } else {
-        attrNode.nodeValue = value;
+  ParseError.prototype = Error.prototype;
+
+  return ParseError;
+}());
+
+},{"./ParseErrorBuilders":6}],6:[function(require,module,exports){
+// `ParseErrorBuilders` contains Factory functions for all our types of
+// parse errors, indexed by error type.
+//
+// Each public factory function returns a `parseInfo` object, sans the
+// `type` property. For more information on each type of error,
+// see the [error specification][].
+//
+//   [error specification]: spec/
+module.exports = (function() {
+  "use strict";
+
+  var ParseErrorBuilders = {
+    /* Create a new object that has the properties of both arguments
+     * and return it. */
+    _combine: function(a, b) {
+      var obj = {}, name;
+      for (name in a) {
+        obj[name] = a[name];
       }
-      this.currentNode.attributes.setNamedItem(attrNode);
-    },
-    // This method appends a text node to the currently active element.
-    text: function(text, parseInfo) {
-      var textNode = this.document.createTextNode(text);
-      textNode.parseInfo = parseInfo;
-      this.currentNode.appendChild(textNode);
-    }
-  };
-
-  // ### Exported Symbols
-  //
-  // `Slowparse` is the object that holds all exported symbols from
-  // this library.
-  var Slowparse = {
-    // We export our list of recognized HTML elements and CSS properties
-    // for clients to use if needed.
-    HTML_ELEMENT_NAMES: HTMLParser.prototype.voidHtmlElements.concat(
-                          HTMLParser.prototype.htmlElements.concat(
-                            HTMLParser.prototype.obsoleteHtmlElements)),
-    CSS_PROPERTY_NAMES: CSSParser.prototype.cssProperties,
-
-    // We also export a few internal symbols for use by Slowparse's
-    // testing suite.
-    replaceEntityRefs: replaceEntityRefs,
-    Stream: Stream,
-
-    // `Slowparse.HTML()` is the primary function we export. Given
-    // a DOM document object (or a DOMBuilder instance) and a string
-    // of HTML, we return an object with the following keys:
-    //
-    // * `document` is a DOM document fragment containing the DOM of
-    //   the parsed HTML. If an error occurred while parsing, this
-    //   document is incomplete, and represents what was built before
-    //   the error was encountered.
-    //
-    // * `error` is a JSON-serializable object representing any error
-    //   that occurred while parsing. If no errors occurred while parsing,
-    //   its value is `null`. For a list of the types of errors that
-    //   can be returned, see the [error specification][].
-    //
-    // An array of error detector functions can also be passed as a
-    // third argument to this function. An error detector function takes
-    // the HTML and generated document fragment as arguments and returns
-    // an error object if an error is detected, or `undefined` otherwise.
-    // This can be used for further error checking on the parsed document.
-    //
-    //   [error specification]: spec/
-    HTML: function(document, html, options) {
-      options = options || {};
-      var stream = new Stream(html),
-          domBuilder,
-          parser,
-          warnings = null,
-          error = null,
-          errorDetectors = options.errorDetectors || [],
-          disallowActiveAttributes = (typeof options.disallowActiveAttributes === "undefined") ? false : options.disallowActiveAttributes;
-
-      domBuilder = new DOMBuilder(document, disallowActiveAttributes);
-      parser = new HTMLParser(stream, domBuilder);
-
-      try {
-        var _ = parser.parse();
-        if (_.warnings) {
-          warnings = _.warnings;
-        }
-      } catch (e) {
-        if (e.parseInfo) {
-          error = e.parseInfo;
-        } else
-          throw e;
+      for (name in b) {
+        obj[name] = b[name];
       }
-
-      errorDetectors.forEach(function(detector) {
-        if (!error)
-          error = detector(html, domBuilder.fragment) || null;
-      });
-
+      return obj;
+    },
+    // These are HTML errors.
+    UNCLOSED_TAG: function(parser) {
+      var currentNode = parser.domBuilder.currentNode,
+          openTag = this._combine({
+            name: currentNode.nodeName.toLowerCase()
+          }, currentNode.parseInfo.openTag);
       return {
-        document: domBuilder.fragment,
-        contexts: domBuilder.contexts,
-        warnings: warnings,
-        error: error
+        openTag: openTag,
+        cursor: openTag.start
       };
     },
-    // `Slowparse.findError()` just returns any error in the given HTML
-    // string, or `null` if the HTML contains no errors.
-    findError: function(html, errorDetectors) {
-      return this.HTML(document, html, errorDetectors).error;
+    INVALID_TAG_NAME: function(tagName, token) {
+      var openTag = this._combine({
+            name: tagName
+          }, token.interval);
+      return {
+        openTag: openTag,
+        cursor: openTag.start
+      };
+    },
+    UNEXPECTED_CLOSE_TAG: function(parser, closeTagName, token) {
+      var closeTag = this._combine({
+            name: closeTagName
+          }, token.interval);
+      return {
+        closeTag: closeTag,
+        cursor: closeTag.start
+      };
+    },
+    MISMATCHED_CLOSE_TAG: function(parser, openTagName, closeTagName, token) {
+      var openTag = this._combine({
+            name: openTagName
+          }, parser.domBuilder.currentNode.parseInfo.openTag),
+          closeTag = this._combine({
+            name: closeTagName
+          }, token.interval);
+      return {
+        openTag: openTag,
+        closeTag: closeTag,
+        cursor: closeTag.start
+      };
+    },
+    ATTRIBUTE_IN_CLOSING_TAG: function(parser) {
+      var currentNode = parser.domBuilder.currentNode;
+      var end = parser.stream.pos;
+      if (!parser.stream.end()) {
+        end = parser.stream.makeToken().interval.start;
+      }
+      var closeTag = {
+        name: currentNode.nodeName.toLowerCase(),
+        start: currentNode.parseInfo.closeTag.start,
+        end: end
+      };
+      return {
+        closeTag: closeTag,
+        cursor: closeTag.start
+      };
+    },
+    CLOSE_TAG_FOR_VOID_ELEMENT: function(parser, closeTagName, token) {
+      var closeTag = this._combine({
+            name: closeTagName
+          }, token.interval);
+      return {
+        closeTag: closeTag,
+        cursor: closeTag.start
+      };
+    },
+    UNTERMINATED_COMMENT: function(token) {
+      var commentStart = token.interval.start;
+      return {
+        start: commentStart,
+        cursor: commentStart
+      };
+    },
+    UNTERMINATED_ATTR_VALUE: function(parser, nameTok) {
+      var currentNode = parser.domBuilder.currentNode,
+          openTag = this._combine({
+            name: currentNode.nodeName.toLowerCase()
+          }, currentNode.parseInfo.openTag),
+          valueTok = parser.stream.makeToken(),
+          attribute = {
+            name: {
+              value: nameTok.value,
+              start: nameTok.interval.start,
+              end: nameTok.interval.end
+            },
+            value: {
+              start: valueTok.interval.start
+            }
+          };
+      return {
+        openTag: openTag,
+        attribute: attribute,
+        cursor: attribute.value.start
+      };
+    },
+    UNQUOTED_ATTR_VALUE: function(parser) {
+      var pos = parser.stream.pos;
+      if (!parser.stream.end()) {
+        pos = parser.stream.makeToken().interval.start;
+      }
+      return {
+        start: pos,
+        cursor: pos
+      };
+    },
+    INVALID_ATTR_NAME: function(parser, attrToken) {
+      return {
+        start: attrToken.interval.start,
+        end: attrToken.interval.end,
+        attribute: {
+          name: {
+            value: attrToken.value
+          }
+        },
+        cursor: attrToken.interval.start
+      };
+    },
+    MULTIPLE_ATTR_NAMESPACES: function(parser, attrToken) {
+      return {
+        start: attrToken.interval.start,
+        end: attrToken.interval.end,
+        attribute: {
+          name: {
+            value: attrToken.value
+          }
+        },
+        cursor: attrToken.interval.start
+      };
+    },
+    UNSUPPORTED_ATTR_NAMESPACE: function(parser, attrToken) {
+      return {
+        start: attrToken.interval.start,
+        end: attrToken.interval.end,
+        attribute: {
+          name: {
+            value: attrToken.value
+          }
+        },
+        cursor: attrToken.interval.start
+      };
+    },
+    UNTERMINATED_OPEN_TAG: function(parser) {
+      var currentNode = parser.domBuilder.currentNode,
+          openTag = {
+            start: currentNode.parseInfo.openTag.start,
+            end: parser.stream.pos,
+            name: currentNode.nodeName.toLowerCase()
+          };
+      return {
+        openTag: openTag,
+        cursor: openTag.start
+      };
+    },
+    SELF_CLOSING_NON_VOID_ELEMENT: function(parser, tagName) {
+      var start = parser.domBuilder.currentNode.parseInfo.openTag.start,
+          end = parser.stream.makeToken().interval.end;
+      return {
+        name: tagName,
+        start: start,
+        end: end,
+        cursor: start
+      };
+    },
+    UNTERMINATED_CLOSE_TAG: function(parser) {
+      var currentNode = parser.domBuilder.currentNode;
+      var end = parser.stream.pos;
+      if (!parser.stream.end()) {
+        end = parser.stream.makeToken().interval.start;
+      }
+      var closeTag = {
+            name: currentNode.nodeName.toLowerCase(),
+            start: currentNode.parseInfo.closeTag.start,
+            end: end
+          };
+      return {
+        closeTag: closeTag,
+        cursor: closeTag.start
+      };
+    },
+    //Special error type for a http link does not work in a https page
+    HTTP_LINK_FROM_HTTPS_PAGE: function(parser, nameTok, valueTok) {
+      var currentNode = parser.domBuilder.currentNode,
+          openTag = this._combine({
+            name: currentNode.nodeName.toLowerCase()
+          }, currentNode.parseInfo.openTag),
+          attribute = {
+            name: {
+              value: nameTok.value,
+              start: nameTok.interval.start,
+              end: nameTok.interval.end
+            },
+            value: {
+              start: valueTok.interval.start + 1,
+              end: valueTok.interval.end - 1
+            }
+          };
+      return {
+        openTag: openTag,
+        attribute: attribute,
+        cursor: attribute.value.start
+      };
+    },
+    // These are CSS errors.
+    UNKOWN_CSS_KEYWORD: function(parser, start, end, value) {
+      return {
+        cssKeyword: {
+          start: start,
+          end: end,
+          value: value
+        },
+        cursor: start
+      };
+    },
+    MISSING_CSS_SELECTOR: function(parser, start, end) {
+      return {
+        cssBlock: {
+          start: start,
+          end: end
+        },
+        cursor: start
+      };
+    },
+    UNFINISHED_CSS_SELECTOR: function(parser, start, end, selector) {
+      return {
+        cssSelector: {
+          start: start,
+          end: end,
+          selector: selector
+        },
+        cursor: start
+      };
+    },
+    MISSING_CSS_BLOCK_OPENER: function(parser, start, end, selector) {
+      return {
+        cssSelector: {
+          start: start,
+          end: end,
+          selector: selector
+        },
+        cursor: start
+      };
+    },
+    INVALID_CSS_PROPERTY_NAME: function(parser, start, end, property) {
+      return {
+        cssProperty: {
+          start: start,
+          end: end,
+          property: property
+        },
+        cursor: start
+      };
+    },
+    MISSING_CSS_PROPERTY: function(parser, start, end, selector) {
+      return {
+        cssSelector: {
+          start: start,
+          end: end,
+          selector: selector
+        },
+        cursor: start
+      };
+    },
+    UNFINISHED_CSS_PROPERTY: function(parser, start, end, property) {
+      return {
+        cssProperty: {
+          start: start,
+          end: end,
+          property: property
+        },
+        cursor: start
+      };
+    },
+    MISSING_CSS_VALUE: function(parser, start, end, property) {
+      return {
+        cssProperty: {
+          start: start,
+          end: end,
+          property: property
+        },
+        cursor: start
+      };
+    },
+    UNFINISHED_CSS_VALUE: function(parser, start, end, value) {
+      return {
+        cssValue: {
+          start: start,
+          end: end,
+          value: value
+        },
+        cursor: start
+      };
+    },
+    CSS_MIXED_ACTIVECONTENT: function(parser, property, propertyStart, value, valueStart, valueEnd) {
+      var cssProperty = {
+            property: property,
+            start: propertyStart,
+            end: propertyStart + property.length
+          },
+          cssValue = {
+            value: value,
+            start: valueStart,
+            end: valueEnd
+          };
+      return {
+        cssProperty: cssProperty,
+        cssValue: cssValue,
+        cursor: cssValue.start
+      };
+    },
+    MISSING_CSS_BLOCK_CLOSER: function(parser, start, end, value) {
+      return {
+        cssValue: {
+          start: start,
+          end: end,
+          value: value
+        },
+        cursor: start
+      };
+    },
+    UNCAUGHT_CSS_PARSE_ERROR: function(parser, start, end, msg) {
+      return {
+        error: {
+          start: start,
+          end: end,
+          msg: msg
+        },
+        cursor: start
+      };
+    },
+    UNTERMINATED_CSS_COMMENT: function(start) {
+      return {
+        start: start,
+        cursor: start
+      };
+    },
+    HTML_CODE_IN_CSS_BLOCK: function(parser, start, end) {
+      return {
+        html: {
+          start: start,
+          end: end
+        },
+        cursor: start
+      };
     }
   };
 
-  // AMD context
-  if (typeof define !== "undefined") {
-    define(function() { return Slowparse; });
-  }
+  return ParseErrorBuilders;
 
-  // Node.js context
-  else if(typeof module !== "undefined" && module.exports) {
-    module.exports = Slowparse;
-  }
-
-  // browser context
-  else if (typeof window !== "undefined") {
-    window.Slowparse = Slowparse;
-  }
 }());
+
+},{}],7:[function(require,module,exports){
+// ### Streams
+//
+// `Stream` is an internal class used for tokenization. The interface for
+// this class is inspired by the analogous class in [CodeMirror][].
+//
+//   [CodeMirror]: http://codemirror.net/doc/manual.html#modeapi
+module.exports = (function(){
+  "use strict";
+
+  var ParseError = require("./ParseError");
+  var ParseErrorBuilders = require("./ParseErrorBuilders");
+
+  function Stream(text) {
+    this.text = text;
+    this.pos = 0;
+    this.tokenStart = 0;
+  }
+
+  Stream.prototype = {
+    // `Stream.peek()` returns the next character in the stream without
+    // advancing it. It will return `undefined` at the end of the text.
+    peek: function() {
+      return this.text[this.pos];
+    },
+    // `Stream.substream(len)` returns a substream from the stream
+    // without advancing it, with length `len`.
+    substream: function(len) {
+      return this.text.substring(this.pos, this.pos + len);
+    },
+    // `Stream.next()` returns the next character in the stream and advances
+    // it. It also returns `undefined` when no more characters are available.
+    next: function() {
+      if (!this.end())
+        return this.text[this.pos++];
+    },
+    // `Stream.rewind()` rewinds the stream position by X places.
+    rewind: function(x) {
+      this.pos -= x;
+      if (this.pos < 0) {
+        this.pos = 0;
+      }
+    },
+    // `Stream.end()` returns true only if the stream is at the end of the
+    // text.
+    end: function() {
+      return (this.pos == this.text.length);
+    },
+    // `Stream.eat()` takes a regular expression. If the next character in
+    // the stream matches the given argument, it is consumed and returned.
+    // Otherwise, `undefined` is returned.
+    eat: function(match) {
+      if (!this.end() && this.peek().match(match))
+        return this.next();
+    },
+    // `Stream.eatWhile()` repeatedly calls `eat()` with the given argument,
+    // until it fails. Returns `true` if any characters were eaten.
+    eatWhile: function(matcher) {
+      var wereAnyEaten = false;
+      while (!this.end()) {
+        if (this.eat(matcher))
+          wereAnyEaten = true;
+        else
+          return wereAnyEaten;
+      }
+    },
+    // `Stream.eatSpace()` is a shortcut for `eatWhile()` when matching
+    // white-space (including newlines).
+    eatSpace: function() {
+      return this.eatWhile(/[\s\n]/);
+    },
+    // `Stream.eatCSSWhile()` is like `eatWhile()`, but it
+    // automatically deals with eating block comments like `/* foo */`.
+    eatCSSWhile: function(matcher) {
+      var wereAnyEaten = false,
+          chr = '',
+          peek = '',
+          next = '';
+      while (!this.end()) {
+        chr = this.eat(matcher);
+        if (chr)
+          wereAnyEaten = true;
+        else
+          return wereAnyEaten;
+        if (chr === '/') {
+          peek = this.peek();
+          if (peek === '*') {
+            /* Block comment found. Gobble until resolved. */
+            while(next !== '/' && !this.end()) {
+              this.eatWhile(/[^*]/);
+              this.next();
+              next = this.next();
+            }
+            next = '';
+          }
+        }
+      }
+    },
+    // CSS content values terminate on ; only when that ; is not
+    // inside a quoted string.
+    findContentEnd: function() {
+      var quoted = false,
+          c, _c;
+      while(!this.end()) {
+        c = this.next();
+        if (c === '"' || c === "'") {
+          if (quoted === false) quoted = c;
+          else if (quoted === c && _c !== "\\") quoted = false;
+          continue;
+        }
+        if (c === ';' && quoted === false) {
+          break;
+        }
+        _c = c;
+      }
+      this.pos--;
+    },
+    // strip any CSS comment block starting at this position.
+    // if there is no such block, don't do anything to the stream.
+    stripCommentBlock: function() {
+      if (this.substream(2) !== "/*") return;
+      this.pos += 2;
+      for(;!this.end(); this.pos++) {
+        if(this.substream(2) === "*/") {
+          this.pos += 2;
+          break;
+        }
+      }
+      this.eatSpace();
+    },
+    // `Stream.markTokenStart()` will set the start for the next token to
+    // the current stream position (i.e., "where we are now").
+    markTokenStart: function() {
+      this.tokenStart = this.pos;
+    },
+    // `Stream.markTokenStartAfterSpace()` is a wrapper function for eating
+    // up space, then marking the start for a new token.
+    markTokenStartAfterSpace: function() {
+      this.eatSpace();
+      this.markTokenStart();
+    },
+    // `Stream.makeToken()` generates a JSON-serializable token object
+    // representing the interval of text between the end of the last
+    // generated token and the current stream position.
+    makeToken: function() {
+      if (this.pos == this.tokenStart)
+        return null;
+      var token = {
+        value: this.text.slice(this.tokenStart, this.pos),
+        interval: {
+          start: this.tokenStart,
+          end: this.pos
+        }
+      };
+      this.tokenStart = this.pos;
+      return token;
+    },
+    // `Stream.match()` acts like a multi-character eat—if *consume* is `true`
+    // or not given—or a look-ahead that doesn't update the stream
+    // position—if it is `false`. *string* must be a string. *caseFold* can
+    // be set to `true` to make the match case-insensitive.
+    match: function(string, consume, caseFold) {
+      var substring = this.text.slice(this.pos, this.pos + string.length);
+      if (caseFold) {
+        string = string.toLowerCase();
+        substring = substring.toLowerCase();
+      }
+      if (string == substring) {
+        if (consume)
+          this.pos += string.length;
+        return true;
+      }
+      return false;
+    },
+    // `Stream.findNext()` is a look-ahead match that doesn't update the stream position
+    // by a given regular expression
+    findNext: function(pattern, groupNumber) {
+      var currentPos = this.pos;
+      this.eatWhile(/[^>]/);
+      this.next();
+      var nextPos = this.pos;
+      this.pos = currentPos;
+      var token = this.substream(nextPos - currentPos);
+      var captureGroups = token.match(pattern);
+      this.pos = currentPos;
+      if(captureGroups) {
+        return captureGroups[groupNumber];
+      }
+      return false;
+    }
+  };
+
+  return Stream;
+}());
+
+},{"./ParseError":5,"./ParseErrorBuilders":6}],8:[function(require,module,exports){
+//Define a property checker for https page
+module.exports = {
+  mixedContent: (typeof window !== "undefined" ? (window.location.protocol === "https:") : false)
+};
+
+},{}]},{},[1])(1)
+});
