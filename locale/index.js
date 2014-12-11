@@ -56,6 +56,7 @@
       var div = document.getElementById("entries");
       errors.forEach(function(error) {
         var p = template.cloneNode(true);
+        p.querySelector("h1").id = error;
         p.querySelector("h1").textContent = error;
         p.querySelector("p").innerHTML = templatify(obj[error], genericObject);
         p.querySelector("pre").textContent = obj[error];
