@@ -783,5 +783,19 @@ module.exports = function(Slowparse, window, document, validators) {
     });
   });
 
+  test("Rogue \"value\" entries inside the opening tag should be flagged as bad", function () {
+    var html = '<body><img src="https://example.org/test.png" alt="test image" width "207"></body>';
+    var result = parse(html);
+    equal(result.error, {
+      type: 'UNBOUND_ATTRIBUTE_VALUE',
+      value: '"207"',
+      interval: {
+        start: 69,
+        end: 74
+      },
+      cursor: 69
+    });
+  });
+
   return validators.getFailCount();
 };
