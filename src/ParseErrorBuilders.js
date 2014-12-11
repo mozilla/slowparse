@@ -164,6 +164,13 @@ module.exports = (function() {
         cursor: attrToken.interval.start
       };
     },
+    UNBOUND_ATTRIBUTE_VALUE: function(parser, valueToken) {
+      return {
+        value: valueToken.value,
+        interval: valueToken.interval,
+        cursor: valueToken.interval.start
+      };
+    },
     UNTERMINATED_OPEN_TAG: function(parser) {
       var currentNode = parser.domBuilder.currentNode,
           openTag = {

@@ -427,16 +427,19 @@ module.exports = (function(){
           startMark = this.stream.pos;
 
       while (!this.stream.end()) {
+
         if (this.containsAttribute(this.stream)) {
           if (this.stream.peek !== "=") {
             this.stream.eatWhile(nameChar);
           }
           this._parseAttribute(tagName);
         }
+
         else if (this.stream.eatSpace()) {
           this.stream.makeToken();
           startMark = this.stream.pos;
         }
+
         else if (this.stream.peek() == '>' || this.stream.match("/>")) {
           var selfClosing = this.stream.match("/>", true);
           if (selfClosing) {
@@ -500,6 +503,7 @@ module.exports = (function(){
           }
           return;
         }
+
         // error cases: bad attribute name, or unclosed tag
         else {
           this.stream.eatWhile(/[^'"\s=<>]/);
@@ -507,6 +511,14 @@ module.exports = (function(){
           if (!attrToken) {
             this.stream.tokenStart = tagMark;
             attrToken = this.stream.makeToken();
+            var peek = this.stream.peek();
+            if(peek === "'" || peek === '"') {
+              this.stream.next();
+              this.stream.eatWhile(new RegExp("[^"+peek+"]"));
+              this.stream.next();
+              var token = this.stream.makeToken();
+              throw new ParseError("UNBOUND_ATTRIBUTE_VALUE", this, token);
+            }
             throw new ParseError("UNTERMINATED_OPEN_TAG", this);
           }
           attrToken.interval.start = startMark;

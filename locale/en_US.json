@@ -33,5 +33,6 @@
   "UNTERMINATED_CLOSE_TAG": "<p>The closing <code>&lt;/[[closeTag.name]]&gt;</code> tag <em data-highlight='[[closeTag.start]],[[closeTag.end]]'>here</em> doesn't end with a <code>&gt;</code>.</p>",
   "UNTERMINATED_COMMENT": "<p>The comment <em data-highlight='[[start]]'>here</em> doesn't end with a <code>--&gt;</code>.</p>",
   "UNTERMINATED_CSS_COMMENT": "<p>The CSS comment <em data-highlight='[[start]]'>here</em> doesn't end with a <code>*/</code>.</p>",
+  "UNBOUND_ATTRIBUTE_VALUE": "<p>The attribute value <code>[[value]]</code> <em data-highlight='[[interval.start]],[[interval.end]]'>here</em> appears to be detached from an attribute. You may be missing an '=' sign.</p>",
   "UNTERMINATED_OPEN_TAG": "<p>The opening <code>&lt;[[openTag.name]]&gt;</code> tag <em data-highlight='[[openTag.start]],[[openTag.end]]'>here</em> doesn't end with a <code>&gt;</code>.</p>"
 }
