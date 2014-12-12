@@ -1,6 +1,6 @@
 # Slowparse, a friendlier HTML5 parser
 
-Slowparse is an experimental JavaScript-based HTML5 parser born out of Mozilla Webmaking initiatives.
+Slowparse is an experimental JavaScript-based HTML5 parser born out of Mozilla Webmaking initiatives. A live demo of Slowparse can be found over at http://mozilla.github.io/slowparse
 
 ## Installing Slowparse
 
