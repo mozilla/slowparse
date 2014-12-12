@@ -37,7 +37,7 @@ This is mostly a convenience construction, and using it is equivalent to doing a
 
 This option can be either `true` or `false`, and when `true` will blank out attributes when it sees any that start with `on` such as `onclick`, `onload`, etc.
 
-This means the DOM formed during the Slowparse run is a tiny bit more secure, although you will still be responsible for checking for potentially harmful active content (Slowparse is not a security tool, and should be used as such).
+This means the DOM formed during the Slowparse run is a tiny bit more secure, although you will still be responsible for checking for potentially harmful active content (Slowparse is not a security tool, and should not be used as such).
 
 ### Validating HTML
 
