@@ -2,6 +2,7 @@
   <head>
     <meta charset="utf-8">
     <title>Slowparse, a friendlier HTML5 parser</title>
+    <link rel="stylesheet" href="style.css">
   </head>
   <body>
     <header>
@@ -9,8 +10,25 @@
     </header>
 
     <main>
+      <textarea class="text pane">
+<!doctype html>
+<html>
+  <head>
+  </head>
+  <body>
+  </body>
+</html>
+      </textarea>
+      <textarea class="error pane" readonly></textarea>
+      <div class="preview pane"></div>
+    </main>
+
+    <footer>
       <p>Please see the <a href="http://github.com/mozilla/slowparse">github repository</a> for the README.md documentation.</p>
       <p>For the locale strings used by Slowparse, <a href="./locale">click here</a>.</p>
-    </main>
+    </footer>
+
+    <script src="slowparse.js"></script>
+    <script src="index.js"></script>
   </body>
 </html>

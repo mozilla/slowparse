@@ -1,130 +1,82 @@
-// Slowparse is a token stream parser for HTML and CSS text,
-// recording regions of interest during the parse run and
-// signaling any errors detected accompanied by relevant
-// regions in the text stream, to make debugging easy. Each
-// error type is documented in the [error specification][].
-//
-// Slowparse also builds a DOM as it goes, attaching metadata
-// to each node build that points to where it came from in
-// the original source.
-//
-// For more information on the rationale behind Slowparse, as
-// well as its design goals, see the [README][].
-//
-// If [RequireJS] is detected, this file is defined as a module via
-// `define()`. Otherwise, a global called `Slowparse` is exposed.
-//
-// ## Implementation
-//
-// Slowparse is effectively a finite state machine for
-// HTML and CSS strings, and will switch between the HTML
-// and CSS parsers while maintaining a single token stream.
-//
-//   [RequireJS]: http://requirejs.org/
-//   [error specification]: spec/
-//   [README]: https://github.com/mozilla/slowparse#readme
-(function() {
-  "use strict";
+var xhr = new XMLHttpRequest();
+xhr.open("GET", "locale/en_US.json", true);
+xhr.onreadystatechange = function() {
+  if(xhr.readyState !== 4 || (xhr.status !== 0 && xhr.status !== 200)) return;
 
-  var Stream = require("./src/Stream");
-  var CSSParser = require("./src/CSSParser");
-  var HTMLParser = require("./src/HTMLParser");
-  var DOMBuilder = require("./src/DOMBuilder");
+  var strings = xhr.responseText;
+  var stringmap = JSON.parse(strings);
 
-  // ### Exported Symbols
-  //
-  // `Slowparse` is the object that holds all exported symbols from
-  // this library.
-  var Slowparse = {
-    // We export our list of recognized HTML elements and CSS properties
-    // for clients to use if needed.
-    HTML_ELEMENT_NAMES: HTMLParser.prototype.voidHtmlElements.concat(
-                          HTMLParser.prototype.htmlElements.concat(
-                            HTMLParser.prototype.obsoleteHtmlElements)),
-    CSS_PROPERTY_NAMES: CSSParser.prototype.cssProperties,
+  var input = document.querySelector(".text.pane"),
+      errors = document.querySelector(".error.pane"),
+      preview = document.querySelector(".preview.pane");
 
-    // We also export a few internal symbols for use by Slowparse's
-    // testing suite.
-    replaceEntityRefs: HTMLParser.replaceEntityRefs,
-    Stream: Stream,
+  var frame = document.createElement("iframe");
+  preview.innerHTML = "";
+  preview.appendChild(frame);
+  var fdoc = frame.contentDocument;
 
-    // `Slowparse.HTML()` is the primary function we export. Given
-    // a DOM document object (or a DOMBuilder instance) and a string
-    // of HTML, we return an object with the following keys:
-    //
-    // * `document` is a DOM document fragment containing the DOM of
-    //   the parsed HTML. If an error occurred while parsing, this
-    //   document is incomplete, and represents what was built before
-    //   the error was encountered.
-    //
-    // * `error` is a JSON-serializable object representing any error
-    //   that occurred while parsing. If no errors occurred while parsing,
-    //   its value is `null`. For a list of the types of errors that
-    //   can be returned, see the [error specification][].
-    //
-    // An array of error detector functions can also be passed as a
-    // third argument to this function. An error detector function takes
-    // the HTML and generated document fragment as arguments and returns
-    // an error object if an error is detected, or `undefined` otherwise.
-    // This can be used for further error checking on the parsed document.
-    //
-    //   [error specification]: spec/
-    HTML: function(document, html, options) {
-      options = options || {};
-      var stream = new Stream(html),
-          domBuilder,
-          parser,
-          warnings = null,
-          error = null,
-          errorDetectors = options.errorDetectors || [],
-          disallowActiveAttributes = (typeof options.disallowActiveAttributes === "undefined") ? false : options.disallowActiveAttributes;
+  var bePre = function(v) { return v.replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+  var unPre = function(v) { return v.replace(/&lt;/g,'<').replace(/&gt;/g,'>'); };
 
-      domBuilder = new DOMBuilder(document, disallowActiveAttributes);
-      parser = new HTMLParser(stream, domBuilder);
+  var hoverHandler = function(basedata) {
+    return function(evt) {
+      var target = evt.target;
+      var hl = target.getAttribute("data-highlight");
+      if(!hl) return;
+      var values = hl.split(",").map(function(v) { return parseInt(v,10); });
+      var start = values[0];
+      var end = values[1];
+      var pre = fdoc.querySelector("pre");
+      var marked = basedata;
+      var marked = bePre(marked.slice(0,start) + "<highlight>" + marked.slice(start, end) + "</highlight>" + marked.slice(end));
+      marked = marked.replace("&lt;highlight&gt;", "<span class='highlight'>");
+      marked = marked.replace("&lt;/highlight&gt;", "</span>");
+      pre.innerHTML = marked;
+    };
+  };
 
-      try {
-        var _ = parser.parse();
-        if (_.warnings) {
-          warnings = _.warnings;
-        }
-      } catch (e) {
-        if (e.parseInfo) {
-          error = e.parseInfo;
-        } else
-          throw e;
+
+  var setPreview = function(data, original) {
+    fdoc.open();
+    fdoc.write(data);
+    fdoc.write("<style>hr { border: solid grey; width: 100%; margin: 0; border-width: 1px 0 0 0; } span.highlight { background: pink; } em[data-highlight] { cursor: pointer; }</style>");
+    fdoc.close();
+    fdoc.addEventListener("mouseover", hoverHandler(original));
+  };
+
+  var resolveError = function(data, error, map) {
+    var template = map[error.type];
+    var errorHTML = template.replace(/\[\[([^\]]+)\]\]/g, function(_, term) {
+      var terms = term.indexOf(".") > -1 ? term.split(".") : [term];
+      var value = error;
+      while(terms.length > 0) {
+        value = value[terms.splice(0,1)[0]];
       }
+      return value;
+    });
+    var suffix = "\n<hr>\n<pre class='hl-target'>\n" + bePre(data) + "</pre>";
+    errorHTML += suffix;
+    return errorHTML
+  };
 
-      errorDetectors.forEach(function(detector) {
-        if (!error)
-          error = detector(html, domBuilder.fragment) || null;
-      });
+  var timeout = false;
 
-      return {
-        document: domBuilder.fragment,
-        contexts: domBuilder.contexts,
-        warnings: warnings,
-        error: error
-      };
-    },
-    // `Slowparse.findError()` just returns any error in the given HTML
-    // string, or `null` if the HTML contains no errors.
-    findError: function(html, errorDetectors) {
-      return this.HTML(document, html, errorDetectors).error;
+  var update = function() {
+    var data = input.value;
+    var result = Slowparse.HTML(document, data);
+    if (result.error) {
+      errors.textContent = JSON.stringify(result.error, false, 2);
+      setPreview(resolveError(data, result.error, stringmap), data);
+    } else {
+      errors.textContent = '';
+      setPreview(data);
     }
   };
 
-  // AMD context
-  if (typeof define !== "undefined") {
-    define(function() { return Slowparse; });
-  }
+  input.addEventListener("keyup", function(evt) {
+    setTimeout(update, 100);
+  });
 
-  // Node.js context
-  else if(typeof module !== "undefined" && module.exports) {
-    module.exports = Slowparse;
-  }
-
-  // browser context
-  else if (typeof window !== "undefined") {
-    window.Slowparse = Slowparse;
-  }
-}());
+  update();
+}
+xhr.send(null);
