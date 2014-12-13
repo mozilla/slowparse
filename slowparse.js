@@ -667,7 +667,7 @@ module.exports = (function(){
   // the current active omittable html Element
   var activeTagNode = false;
 
-  // the parent html Element for optional closing tag tags
+  // the parent html Element for optional closing tag tags and content validation
   var parentTagNode = false;
 
   // 'foresee' if there is no more content in the parent element, and the
@@ -724,76 +724,37 @@ module.exports = (function(){
     // HTML5 documents have a special doctype that we must use
     html5Doctype: "<!DOCTYPE html>",
 
-    // Void HTML elements are the ones that don't need to have a closing tag.
-    voidHtmlElements: ["area", "base", "br", "col", "command", "embed", "hr",
-                       "img", "input", "keygen", "link", "meta", "param",
-                       "source", "track", "wbr"],
-
-    // Tag Omission Rules, based on the rules on optional tags as outlined in
-    // http://www.w3.org/TR/html5/syntax.html#optional-tags
-
-    // HTML elements that with omittable close tag
-    omittableCloseTagHtmlElements: ["p", "li", "td", "th"],
-
-    // HTML elements that paired with omittable close tag list
-    omittableCloseTags: {
-      "p": ["address", "article", "aside", "blockquote", "dir", "div", "dl",
-            "fieldset", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6",
-            "header", "hgroup", "hr", "main", "nav", "ol", "p", "pre",
-            "section", "table", "ul"],
-      "th": ["th", "td"],
-      "td": ["th", "td"],
-      "li": ["li"]
-    },
-
-    // We keep a list of all valid HTML5 elements.
-    htmlElements: ["a", "abbr", "address", "area", "article", "aside",
-                   "audio", "b", "base", "bdi", "bdo", "bgsound", "blink",
-                   "blockquote", "body", "br", "button", "canvas", "caption",
-                   "cite", "code", "col", "colgroup", "command", "datalist",
-                   "dd", "del", "details", "dfn", "div", "dl", "dt", "em",
-                   "embed", "fieldset", "figcaption", "figure", "footer",
-                   "form", "frame", "frameset", "h1", "h2", "h3", "h4", "h5",
-                   "h6", "head", "header", "hgroup", "hr", "html", "i",
-                   "iframe", "img", "input", "ins", "kbd", "keygen", "label",
-                   "legend", "li", "link", "main", "map", "mark", "marquee", "menu",
-                   "meta", "meter", "nav", "nobr", "noscript", "object", "ol",
-                   "optgroup", "option", "output", "p", "param", "pre",
-                   "progress", "q", "rp", "rt", "ruby", "samp", "script",
-                   "section", "select", "small", "source", "spacer", "span",
-                   "strong", "style", "sub", "summary", "sup", "svg", "table",
-                   "tbody", "td", "textarea", "tfoot", "th", "thead", "time",
-                   "title", "tr", "track", "u", "ul", "var", "video", "wbr"],
-
-    // HTML5 allows SVG elements
-    svgElements:  ["a", "altglyph", "altglyphdef", "altglyphitem", "animate",
-                   "animatecolor", "animatemotion", "animatetransform", "circle",
-                   "clippath", "color-profile", "cursor", "defs", "desc",
-                   "ellipse", "feblend", "fecolormatrix", "fecomponenttransfer",
-                   "fecomposite", "feconvolvematrix", "fediffuselighting",
-                   "fedisplacementmap", "fedistantlight", "feflood", "fefunca",
-                   "fefuncb", "fefuncg", "fefuncr", "fegaussianblur", "feimage",
-                   "femerge", "femergenode", "femorphology", "feoffset",
-                   "fepointlight", "fespecularlighting", "fespotlight",
-                   "fetile", "feturbulence", "filter", "font", "font-face",
-                   "font-face-format", "font-face-name", "font-face-src",
-                   "font-face-uri", "foreignobject", "g", "glyph", "glyphref",
-                   "hkern", "image", "line", "lineargradient", "marker", "mask",
-                   "metadata", "missing-glyph", "mpath", "path", "pattern",
-                   "polygon", "polyline", "radialgradient", "rect", "script",
-                   "set", "stop", "style", "svg", "switch", "symbol", "text",
-                   "textpath", "title", "tref", "tspan", "use", "view", "vkern"],
-
     // HTML5 doesn't use namespaces, but actually it does. These are supported:
     attributeNamespaces: ["xlink", "xml"],
 
+    // Void HTML elements are the ones that don't need to have a closing tag.
+    voidHtmlElements: require("./definitions/voidHtmlElements"),
+
+    // HTML elements that with omittable close tag
+    omittableCloseTagHtmlElements: require("./definitions/omittableCloseTagHtmlElements"),
+
+    // HTML elements that paired with omittable close tag list
+    omittableCloseTags: require("./definitions/omittableCloseTags"),
+
+    // We need to know which elements may contain which other elements
+    mayElementContain: require("./definitions/contentModes").mayElementContain,
+
+    // We keep a list of all valid HTML5 elements.
+    htmlElements: Object.keys(require("./definitions/htmlElements")),
+
+    // Not all elements may contain all other elements. This object indicates content modes
+    // for each element, and which modes are allowed in which elements
+    contentModes: require("./definitions/htmlElements"),
+
+    // HTML5 allows SVG elements
+    svgElements:  require("./definitions/svgElements"),
+
     // We also keep a list of HTML elements that are now obsolete, but
     // may still be encountered in the wild on popular sites.
-    obsoleteHtmlElements: ["acronym", "applet", "basefont", "big", "center",
-                           "dir", "font", "isindex", "listing", "noframes",
-                           "plaintext", "s", "strike", "tt", "xmp"],
+    obsoleteHtmlElements: require("./definitions/obsoleteHtmlElements"),
 
-    webComponentElements: ["template", "shadow", "content"],
+    // webcomponents introduce a few new elements to the mix
+    webComponentElements: require("./definitions/webComponentElements"),
 
     // This is a helper function to determine whether a given string
     // is a custom HTML element as per Custom Elements spec
@@ -965,8 +926,9 @@ module.exports = (function(){
         parentTagNode = this.domBuilder.currentNode;
         this.domBuilder.pushElement(tagName, parseInfo, nameSpace);
 
-        if (!this.stream.end())
+        if (!this.stream.end()) {
           this._parseEndOpenTag(tagName);
+        }
       }
     },
     // This helper parses HTML comments. It assumes the stream has just
@@ -1210,7 +1172,7 @@ module.exports = (function(){
 
   return HTMLParser;
 }());
-},{"./CSSParser":1,"./ParseError":4,"./checkMixedContent":7}],4:[function(require,module,exports){
+},{"./CSSParser":1,"./ParseError":4,"./checkMixedContent":7,"./definitions/contentModes":8,"./definitions/htmlElements":9,"./definitions/obsoleteHtmlElements":10,"./definitions/omittableCloseTagHtmlElements":11,"./definitions/omittableCloseTags":12,"./definitions/svgElements":13,"./definitions/voidHtmlElements":14,"./definitions/webComponentElements":15}],4:[function(require,module,exports){
 // ### Errors
 //
 // `ParseError` is an internal error class used to indicate a parsing error.
@@ -1837,6 +1799,1164 @@ module.exports = {
 };
 
 },{}],8:[function(require,module,exports){
+var htmlElements = require("./htmlElements");
+
+module.exports = {
+  mayElementContain: function(parentTag, childTag) {
+    parentTag = parentTag.toLowerCase();
+    childTag = childTag.toLowerCase();
+
+    var pdef = htmlElements[parentTag],
+        perms = pdef.permitted,
+        cdef = htmlElements[childTag];
+
+    // void elements don't allow any content!
+    if(perms === false) return false;
+
+    // Specifically allowed?
+    if(perms.indexOf(childTag) > -1) return true;
+
+    // Generically allowed?
+    var modes = cdef.mode;
+    for(var i=0, last=modes.length,mode; i<last; i++) {
+      mode = modes[i];
+      // specific?
+      if(perms.indexOf(mode) > -1) return true;
+      // generic?
+      if(mode === "phrasing" && perms.indexOf("flow") > -1) return true;
+    }
+
+    // this element may not be used in this parent element
+    return false;
+  }
+};
+
+},{"./htmlElements":9}],9:[function(require,module,exports){
+// note: "flow" entails "phrasing"
+module.exports = {
+
+  "a" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "flow"
+    ]
+  },
+
+  "abbr" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "address" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "flow"
+    ]
+  },
+
+  "area" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: false
+  },
+
+  "article" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "style",
+      "flow"
+    ]
+  },
+
+  "aside" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "style",
+      "flow"
+    ]
+  },
+
+  "audio" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "source",
+      "track",
+      "flow"
+    ]
+  },
+
+  "b" : {
+    mode: [],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "base" : {
+    mode: [
+      "flow"
+    ],
+    permitted: false
+  },
+
+  "bdi" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "bdo" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "blockquote" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "flow"
+    ]
+  },
+
+  "body" : {
+    mode: [],
+    permitted: [
+      "flow"
+    ]
+  },
+
+  "br" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: false
+  },
+
+  "button" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "canvas" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "flow"
+    ]
+  },
+
+  "caption" : {
+    mode: [],
+    permitted: [
+      "flow"
+    ]
+  },
+
+  "cite" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "code" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "col" : {
+    mode: [],
+    permitted: false
+  },
+
+  "colgroup" : {
+    mode: [],
+    permitted: [
+      "col",
+      "span"
+    ]
+  },
+
+  "command" : {
+    mode: [
+      "metadata",
+      "phrasing"
+    ],
+    permitted: false
+  },
+
+  "datalist" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "option",
+      "phrasing"
+    ]
+  },
+
+  "dd" : {
+    mode: [],
+    permitted: [
+      "flow"
+    ]
+  },
+
+  "del" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "flow"
+    ]
+  },
+
+  "details" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "summary",
+      "flow"
+    ]
+  },
+
+  "dfn" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "div" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "style",
+      "flow"
+    ]
+  },
+
+  "dl" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "dt",
+      "dd"
+    ]
+  },
+
+  "dt" : {
+    mode: [],
+    permitted: [
+      "flow"
+    ]
+  },
+
+  "em" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "embed" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: false
+  },
+
+  "fieldset" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "legend",
+      "flow"
+    ]
+  },
+
+  "figcaption" : {
+    mode: [],
+    permitted: [
+      "flow"
+    ]
+  },
+
+  "figure" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "figcaption",
+      "flow"
+    ]
+  },
+
+  "footer" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "flow"
+    ]
+  },
+
+  "form" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "flow"
+    ]
+  },
+
+  // obsolete: frame
+
+  // obsolete: frameset
+
+  "h1" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "h2" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "h3" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "h4" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "h5" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "h6" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "head" : {
+    mode: [],
+    permitted: [
+      "title",
+      "base",
+      "metadata"
+    ]
+  },
+
+  "header" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "flow"
+    ]
+  },
+
+  "hgroup" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "h1","h2","h3","h4","h5","h6"
+    ]
+  },
+
+  "hr" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "flow"
+    ]
+  },
+
+  "html" : {
+    mode: [],
+    permitted: false
+  },
+
+  "i" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "iframe" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "cdata"
+    ]
+  },
+
+  "img" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: false
+  },
+
+  "input" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: false
+  },
+
+  "ins" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "flow"
+    ]
+  },
+
+  "kbd" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "keygen" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: false
+  },
+
+  "label" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "legend" : {
+    mode: [],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "li" : {
+    mode: [],
+    permitted: [
+      "flow"
+    ]
+  },
+
+  "link" : {
+    mode: [
+      "metadata"
+    ],
+    permitted: false
+  },
+
+  // not in HTML5, officiaal: main
+
+  "map" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "flow"
+    ]
+  },
+
+  "mark" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "mathml" : {
+    mode: [],
+    permitted: [
+      "cdata"
+    ]
+  },
+
+  // obsolete: marquee
+
+  "menu" : {
+    mode: [
+      "metadata"
+    ],
+    permitted: [
+      "li",
+      "flow"
+    ]
+  },
+
+  "meta" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: false
+  },
+
+  "meter" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "nav" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "flow"
+    ]
+  },
+
+  // obsolete: nobr
+
+  "noscript" : {
+    mode: [
+      "flow",
+      "metadata"
+    ],
+    permitted: [
+      "link",
+      "meta",
+      "style",
+      "flow"
+    ]
+  },
+
+  "object" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "param",
+      "flow"
+    ]
+  },
+
+  "ol" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "li"
+    ]
+  },
+
+  "optgroup" : {
+    mode: [],
+    permitted: [
+      "option"
+    ]
+  },
+
+  "option" : {
+    mode: [],
+    permitted: [
+      "cdata"
+    ]
+  },
+
+  "output" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "p" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "param" : {
+    mode: [],
+    permitted: false
+  },
+
+  "pre" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "progress" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "q" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "rp" : {
+    mode: [],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "rt" : {
+    mode: [],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "ruby" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing",
+      "rt",
+      "rp"
+    ]
+  },
+
+  "samp" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "script" : {
+    mode: [
+      "metadata",
+      "phrasing"
+    ],
+    permitted: [
+      "cdata"
+    ]
+  },
+
+  "section" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "style",
+      "flow"
+    ]
+  },
+
+  "select" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "optgroup",
+      "option"
+    ]
+  },
+
+  "small" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "source" : {
+    mode: [],
+    permitted: false
+  },
+
+  // obsolete: spacer
+
+  "span" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "strong" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "style" : {
+    mode: [
+      "metadata"
+    ],
+    permitted: [
+      "cdata"
+    ]
+  },
+
+  "sub" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "summary" : {
+    mode: [],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "sup" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "svg" : {
+    mode: [],
+    permitted: [
+      "cdata"
+    ]
+  },
+
+  "table" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "caption",
+      "colgroup",
+      "thead",
+      "tbody",
+      "tfoot",
+      "tr"
+    ]
+  },
+
+  "tbody" : {
+    mode: [],
+    permitted: [
+      "tr"
+    ]
+  },
+
+  "td" : {
+    mode: [],
+    permitted: [
+      "flow"
+    ]
+  },
+
+  "textarea" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "cdata"
+    ]
+  },
+
+  "tfoot" : {
+    mode: [],
+    permitted: [
+      "tr"
+    ]
+  },
+
+  "th" : {
+    mode: [],
+    permitted: [
+      "flow"
+    ]
+  },
+
+  "thead" : {
+    mode: [],
+    permitted: [
+      "tr"
+    ]
+  },
+
+  "time" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "title" : {
+    mode: [],
+    permitted: [
+      "cdata"
+    ]
+  },
+
+  "tr" : {
+    mode: [],
+    permitted: [
+      "td",
+      "th"
+    ]
+  },
+
+  "track" : {
+    mode: [],
+    permitted: false
+  },
+
+  "u" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "ul" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "li"
+    ]
+  },
+
+  "var" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: [
+      "phrasing"
+    ]
+  },
+
+  "video" : {
+    mode: [
+      "flow"
+    ],
+    permitted: [
+      "source",
+      "track",
+      "flow"
+    ]
+  },
+
+  "wbr" : {
+    mode: [
+      "phrasing"
+    ],
+    permitted: false
+  }
+
+};
+
+},{}],10:[function(require,module,exports){
+module.exports = [
+  "acronym",
+  "applet",
+  "basefont",
+  "big",
+  "center",
+  "dir",
+  "font",
+  "isindex",
+  "listing",
+  "noframes",
+  "plaintext",
+  "s",
+  "strike",
+  "tt",
+  "xmp"
+];
+
+},{}],11:[function(require,module,exports){
+module.exports = [
+  "p",
+  "li",
+  "td",
+  "th"
+];
+
+},{}],12:[function(require,module,exports){
+// Tag Omission Rules, based on the rules on optional tags as outlined in
+// http://www.w3.org/TR/html5/syntax.html#optional-tags
+module.exports = {
+
+  "p": [
+    "address",
+    "article",
+    "aside",
+    "blockquote",
+    "dir",
+    "div",
+    "dl",
+    "fieldset", "footer",
+    "form",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "header",
+    "hgroup",
+    "hr",
+    "main",
+    "nav",
+    "ol",
+    "p",
+    "pre",
+    "section",
+    "table",
+    "ul"
+  ],
+
+  "th": [
+    "th",
+    "td"
+  ],
+
+  "td": [
+    "th",
+    "td"
+  ],
+
+  "li": [
+    "li"
+  ]
+};
+
+},{}],13:[function(require,module,exports){
+module.exports = [
+  "a",
+  "altglyph",
+  "altglyphdef",
+  "altglyphitem",
+  "animate",
+  "animatecolor",
+  "animatemotion",
+  "animatetransform",
+  "circle",
+  "clippath",
+  "color-profile",
+  "cursor",
+  "defs",
+  "desc",
+  "ellipse",
+  "feblend",
+  "fecolormatrix",
+  "fecomponenttransfer",
+  "fecomposite",
+  "feconvolvematrix",
+  "fediffuselighting",
+  "fedisplacementmap",
+  "fedistantlight",
+  "feflood",
+  "fefunca",
+  "fefuncb",
+  "fefuncg",
+  "fefuncr",
+  "fegaussianblur",
+  "feimage",
+  "femerge",
+  "femergenode",
+  "femorphology",
+  "feoffset",
+  "fepointlight",
+  "fespecularlighting",
+  "fespotlight",
+  "fetile",
+  "feturbulence",
+  "filter",
+  "font",
+  "font-face",
+  "font-face-format",
+  "font-face-name",
+  "font-face-src",
+  "font-face-uri",
+  "foreignobject",
+  "g",
+  "glyph",
+  "glyphref",
+  "hkern",
+  "image",
+  "line",
+  "lineargradient",
+  "marker",
+  "mask",
+  "metadata",
+  "missing-glyph",
+  "mpath",
+  "path",
+  "pattern",
+  "polygon",
+  "polyline",
+  "radialgradient",
+  "rect",
+  "script",
+  "set",
+  "stop",
+  "style",
+  "svg",
+  "switch",
+  "symbol",
+  "text",
+  "textpath",
+  "title",
+  "tref",
+  "tspan",
+  "use",
+  "view",
+  "vkern"
+];
+
+},{}],14:[function(require,module,exports){
+module.exports = [
+  "area",
+  "base",
+  "br",
+  "col",
+  "command",
+  "embed",
+  "hr",
+  "img",
+  "input",
+  "keygen",
+  "link",
+  "meta",
+  "param",
+  "source",
+  "track",
+  "wbr"
+];
+
+},{}],15:[function(require,module,exports){
+module.exports = ["template", "shadow", "content"];
+
+},{}],16:[function(require,module,exports){
 // Slowparse is a token stream parser for HTML and CSS text,
 // recording regions of interest during the parse run and
 // signaling any errors detected accompanied by relevant
@@ -1968,5 +3088,5 @@ module.exports = {
   }
 }());
 
-},{"./CSSParser":1,"./DOMBuilder":2,"./HTMLParser":3,"./Stream":6}]},{},[8])(8)
+},{"./CSSParser":1,"./DOMBuilder":2,"./HTMLParser":3,"./Stream":6}]},{},[16])(16)
 });

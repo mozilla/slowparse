@@ -51,7 +51,7 @@ module.exports = (function(){
   // the current active omittable html Element
   var activeTagNode = false;
 
-  // the parent html Element for optional closing tag tags
+  // the parent html Element for optional closing tag tags and content validation
   var parentTagNode = false;
 
   // 'foresee' if there is no more content in the parent element, and the
@@ -108,76 +108,37 @@ module.exports = (function(){
     // HTML5 documents have a special doctype that we must use
     html5Doctype: "<!DOCTYPE html>",
 
-    // Void HTML elements are the ones that don't need to have a closing tag.
-    voidHtmlElements: ["area", "base", "br", "col", "command", "embed", "hr",
-                       "img", "input", "keygen", "link", "meta", "param",
-                       "source", "track", "wbr"],
-
-    // Tag Omission Rules, based on the rules on optional tags as outlined in
-    // http://www.w3.org/TR/html5/syntax.html#optional-tags
-
-    // HTML elements that with omittable close tag
-    omittableCloseTagHtmlElements: ["p", "li", "td", "th"],
-
-    // HTML elements that paired with omittable close tag list
-    omittableCloseTags: {
-      "p": ["address", "article", "aside", "blockquote", "dir", "div", "dl",
-            "fieldset", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6",
-            "header", "hgroup", "hr", "main", "nav", "ol", "p", "pre",
-            "section", "table", "ul"],
-      "th": ["th", "td"],
-      "td": ["th", "td"],
-      "li": ["li"]
-    },
-
-    // We keep a list of all valid HTML5 elements.
-    htmlElements: ["a", "abbr", "address", "area", "article", "aside",
-                   "audio", "b", "base", "bdi", "bdo", "bgsound", "blink",
-                   "blockquote", "body", "br", "button", "canvas", "caption",
-                   "cite", "code", "col", "colgroup", "command", "datalist",
-                   "dd", "del", "details", "dfn", "div", "dl", "dt", "em",
-                   "embed", "fieldset", "figcaption", "figure", "footer",
-                   "form", "frame", "frameset", "h1", "h2", "h3", "h4", "h5",
-                   "h6", "head", "header", "hgroup", "hr", "html", "i",
-                   "iframe", "img", "input", "ins", "kbd", "keygen", "label",
-                   "legend", "li", "link", "main", "map", "mark", "marquee", "menu",
-                   "meta", "meter", "nav", "nobr", "noscript", "object", "ol",
-                   "optgroup", "option", "output", "p", "param", "pre",
-                   "progress", "q", "rp", "rt", "ruby", "samp", "script",
-                   "section", "select", "small", "source", "spacer", "span",
-                   "strong", "style", "sub", "summary", "sup", "svg", "table",
-                   "tbody", "td", "textarea", "tfoot", "th", "thead", "time",
-                   "title", "tr", "track", "u", "ul", "var", "video", "wbr"],
-
-    // HTML5 allows SVG elements
-    svgElements:  ["a", "altglyph", "altglyphdef", "altglyphitem", "animate",
-                   "animatecolor", "animatemotion", "animatetransform", "circle",
-                   "clippath", "color-profile", "cursor", "defs", "desc",
-                   "ellipse", "feblend", "fecolormatrix", "fecomponenttransfer",
-                   "fecomposite", "feconvolvematrix", "fediffuselighting",
-                   "fedisplacementmap", "fedistantlight", "feflood", "fefunca",
-                   "fefuncb", "fefuncg", "fefuncr", "fegaussianblur", "feimage",
-                   "femerge", "femergenode", "femorphology", "feoffset",
-                   "fepointlight", "fespecularlighting", "fespotlight",
-                   "fetile", "feturbulence", "filter", "font", "font-face",
-                   "font-face-format", "font-face-name", "font-face-src",
-                   "font-face-uri", "foreignobject", "g", "glyph", "glyphref",
-                   "hkern", "image", "line", "lineargradient", "marker", "mask",
-                   "metadata", "missing-glyph", "mpath", "path", "pattern",
-                   "polygon", "polyline", "radialgradient", "rect", "script",
-                   "set", "stop", "style", "svg", "switch", "symbol", "text",
-                   "textpath", "title", "tref", "tspan", "use", "view", "vkern"],
-
     // HTML5 doesn't use namespaces, but actually it does. These are supported:
     attributeNamespaces: ["xlink", "xml"],
 
+    // Void HTML elements are the ones that don't need to have a closing tag.
+    voidHtmlElements: require("./definitions/voidHtmlElements"),
+
+    // HTML elements that with omittable close tag
+    omittableCloseTagHtmlElements: require("./definitions/omittableCloseTagHtmlElements"),
+
+    // HTML elements that paired with omittable close tag list
+    omittableCloseTags: require("./definitions/omittableCloseTags"),
+
+    // We need to know which elements may contain which other elements
+    mayElementContain: require("./definitions/contentModes").mayElementContain,
+
+    // We keep a list of all valid HTML5 elements.
+    htmlElements: Object.keys(require("./definitions/htmlElements")),
+
+    // Not all elements may contain all other elements. This object indicates content modes
+    // for each element, and which modes are allowed in which elements
+    contentModes: require("./definitions/htmlElements"),
+
+    // HTML5 allows SVG elements
+    svgElements:  require("./definitions/svgElements"),
+
     // We also keep a list of HTML elements that are now obsolete, but
     // may still be encountered in the wild on popular sites.
-    obsoleteHtmlElements: ["acronym", "applet", "basefont", "big", "center",
-                           "dir", "font", "isindex", "listing", "noframes",
-                           "plaintext", "s", "strike", "tt", "xmp"],
+    obsoleteHtmlElements: require("./definitions/obsoleteHtmlElements"),
 
-    webComponentElements: ["template", "shadow", "content"],
+    // webcomponents introduce a few new elements to the mix
+    webComponentElements: require("./definitions/webComponentElements"),
 
     // This is a helper function to determine whether a given string
     // is a custom HTML element as per Custom Elements spec
@@ -349,8 +310,9 @@ module.exports = (function(){
         parentTagNode = this.domBuilder.currentNode;
         this.domBuilder.pushElement(tagName, parseInfo, nameSpace);
 
-        if (!this.stream.end())
+        if (!this.stream.end()) {
           this._parseEndOpenTag(tagName);
+        }
       }
     },
     // This helper parses HTML comments. It assumes the stream has just
