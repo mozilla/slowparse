@@ -2,6 +2,8 @@ var htmlElements = require("./htmlElements");
 
 module.exports = {
   mayElementContain: function(parentTag, childTag) {
+    if(!parentTag) return true;
+
     parentTag = parentTag.toLowerCase();
     childTag = childTag.toLowerCase();
 
@@ -19,6 +21,7 @@ module.exports = {
     var modes = cdef.mode;
     for(var i=0, last=modes.length,mode; i<last; i++) {
       mode = modes[i];
+      console.log(parentTag, pdef, perms, childTag, cdef, mode);
       // specific?
       if(perms.indexOf(mode) > -1) return true;
       // generic?

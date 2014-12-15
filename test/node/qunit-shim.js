@@ -83,8 +83,8 @@ module.exports = function(Slowparse, jsdom) {
     catch (e) {
       failCount++;
       //console.log(JSON.stringify(e));
-      console.log(" FAIL  " + description);
-      console.log(JSON.stringify(e,false,2));
+      console.log(" FAIL  ", description);
+      console.log(e);
     }
   };
 

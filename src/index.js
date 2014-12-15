@@ -45,7 +45,7 @@
 
     // We also export a few internal symbols for use by Slowparse's
     // testing suite.
-    replaceEntityRefs: HTMLParser.replaceEntityRefs,
+    replaceEntityRefs: HTMLParser.prototype.replaceEntityRefs,
     Stream: Stream,
 
     // `Slowparse.HTML()` is the primary function we export. Given

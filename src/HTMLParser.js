@@ -9,8 +9,6 @@ module.exports = (function(){
   var ParseError = require("./ParseError");
   var CSSParser = require("./CSSParser");
 
-  // ### Character Entity Parsing
-  //
   // We currently only parse the most common named character entities.
   var CHARACTER_ENTITY_REFS = {
     lt: "<",
@@ -20,84 +18,73 @@ module.exports = (function(){
     amp: "&"
   };
 
-  // HTML attribute parsing rules are based on
-  // http://www.w3.org/TR/2011/WD-html5-20110525/elements.html#attr-data
-  // -> ref http://www.w3.org/TR/2011/WD-html5-20110525/infrastructure.html#xml-compatible
-  //    -> ref http://www.w3.org/TR/REC-xml/#NT-NameChar
-  // note: this lacks the final \\u10000-\\uEFFFF in the startchar set, because JavaScript
-  //       cannot cope with unciode characters with points over 0xFFFF.
-  var attributeNameStartChar = "A-Za-z_\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD";
-  var nameStartChar = new RegExp("[" + attributeNameStartChar + "]");
-  var attributeNameChar = attributeNameStartChar + "0-9\\-\\.\\u00B7\\u0300-\\u036F\\u203F-\\u2040:";
-  var nameChar = new RegExp("[" + attributeNameChar + "]");
-
-  //Define a property checker for https page
-  var checkMixedContent = require("./checkMixedContent").mixedContent;
-
-  //Define activeContent with tag-attribute pairs
-  function isActiveContent (tagName, attrName) {
-    if (attrName === "href") {
-      return ["link"].indexOf(tagName) > -1;
-    }
-    if (attrName === "src") {
-      return ["script", "iframe"].indexOf(tagName) > -1;
-    }
-    if (attrName === "data") {
-      return ["object"].indexOf(tagName) > -1;
-    }
-    return false;
-  }
-
-  // the current active omittable html Element
-  var activeTagNode = false;
-
-  // the parent html Element for optional closing tag tags and content validation
-  var parentTagNode = false;
-
-  // 'foresee' if there is no more content in the parent element, and the
-  // parent element is not an a element in the case of activeTag is a p element.
-  function isNextTagParent(stream, parentTagName) {
-    return stream.findNext(/<\/([\w\-]+)\s*>/, 1) === parentTagName;
-  }
-
-  // 'foresee' if the next tag is a close tag
-  function isNextCloseTag(stream) {
-    return stream.findNext(/<\/([\w\-]+)\s*>/, 1);
-  }
-
-  // Check exception for Tag omission rules: for p tag, if there is no more
-  // content in the parent element and the parent element is not an a element.
-  function allowsOmmitedEndTag(parentTagName, tagName) {
-    if (tagName === "p") {
-      return ["a"].indexOf(parentTagName) > -1;
-    }
-    return false;
-  }
-
   function HTMLParser(stream, domBuilder) {
     this.warnings = [];
     this.stream = stream;
     this.domBuilder = domBuilder;
     this.cssParser = new CSSParser(stream, domBuilder, this.warnings);
+    //Define a property checker for https page
+    this.checkMixedContent = require("./checkMixedContent").mixedContent;
+    // the current active omittable html Element
+    this.activeTagNode = false;
+    // the parent html Element for optional closing tag tags and content validation
+    this.parentTagNode = false;
+    // legal HTML attribute name characters
+    this.nameChars = require("./attributeNameChars");
   }
 
-  // `replaceEntityRefs()` will replace named character entity references
-  // (e.g. `&lt;`) in the given text string and return the result. If an
-  // entity name is unrecognized, don't replace it at all. Writing HTML
-  // would be surprisingly painful without this forgiving behavior.
-  //
-  // This function does not currently replace numeric character entity
-  // references (e.g., `&#160;`).
-  function replaceEntityRefs(text) {
-    return text.replace(/&([A-Za-z]+);/g, function(ref, name) {
-      name = name.toLowerCase();
-      if (name in CHARACTER_ENTITY_REFS)
-        return CHARACTER_ENTITY_REFS[name];
-      return ref;
-    });
-  };
-
   HTMLParser.prototype = {
+    // 'foresee' if there is no more content in the parent element, and the
+    // parent element is not an a element in the case of activeTag is a p element.
+    isNextTagParent: function(stream, parentTagName) {
+      return stream.findNext(/<\/([\w\-]+)\s*>/, 1) === parentTagName;
+    },
+
+    // 'foresee' if the next tag is a close tag
+    isNextCloseTag: function(stream) {
+      return stream.findNext(/<\/([\w\-]+)\s*>/, 1);
+    },
+
+    // Check exception for Tag omission rules: for p tag, if there is no more
+    // content in the parent element and the parent element is not an a element.
+    allowsOmmitedEndTag: function(parentTagName, tagName) {
+      if (tagName === "p") {
+        return ["a"].indexOf(parentTagName) > -1;
+      }
+      return false;
+    },
+
+    // `replaceEntityRefs()` will replace named character entity references
+    // (e.g. `&lt;`) in the given text string and return the result. If an
+    // entity name is unrecognized, don't replace it at all. Writing HTML
+    // would be surprisingly painful without this forgiving behavior.
+    //
+    // This function does not currently replace numeric character entity
+    // references (e.g., `&#160;`).
+    replaceEntityRefs: function(text) {
+      return text.replace(/&([A-Za-z]+);/g, function(ref, name) {
+        name = name.toLowerCase();
+        if (name in CHARACTER_ENTITY_REFS)
+          return CHARACTER_ENTITY_REFS[name];
+        return ref;
+      });
+    },
+
+    //Define activeContent with tag-attribute pairs
+    isActiveContent: function (tagName, attrName) {
+      if (attrName === "href") {
+        return ["link"].indexOf(tagName) > -1;
+      }
+      if (attrName === "src") {
+        return ["script", "iframe"].indexOf(tagName) > -1;
+      }
+      if (attrName === "data") {
+        return ["object"].indexOf(tagName) > -1;
+      }
+      return false;
+    },
+
+
     // since SVG requires a slightly different code path,
     // we need to track whether we're in HTML or SVG mode.
     parsingSVG: false,
@@ -120,15 +107,15 @@ module.exports = (function(){
     // HTML elements that paired with omittable close tag list
     omittableCloseTags: require("./definitions/omittableCloseTags"),
 
-    // We need to know which elements may contain which other elements
-    mayElementContain: require("./definitions/contentModes").mayElementContain,
+    // Not all elements may contain all other elements. This object indicates content modes
+    // for each element, and which modes are allowed in which elements
+    htmlElementDefinitions: require("./definitions/htmlElements"),
 
     // We keep a list of all valid HTML5 elements.
     htmlElements: Object.keys(require("./definitions/htmlElements")),
 
-    // Not all elements may contain all other elements. This object indicates content modes
-    // for each element, and which modes are allowed in which elements
-    contentModes: require("./definitions/htmlElements"),
+    // We need to know which elements may contain which other elements
+    mayElementContain: require("./definitions/contentModes").mayElementContain,
 
     // HTML5 allows SVG elements
     svgElements:  require("./definitions/svgElements"),
@@ -232,7 +219,7 @@ module.exports = (function(){
     _buildTextNode: function() {
       var token = this.stream.makeToken();
       if (token) {
-        this.domBuilder.text(replaceEntityRefs(token.value), token.interval);
+        this.domBuilder.text(this.replaceEntityRefs(token.value), token.interval);
       }
     },
 
@@ -263,27 +250,25 @@ module.exports = (function(){
       // We want to report useful errors about whether the tag is unexpected
       // or doesn't match with the most recent opening tag.
       if (tagName[0] == '/') {
-        activeTagNode = false;
+        this.activeTagNode = false;
         var closeTagName = tagName.slice(1).toLowerCase();
         if (closeTagName === "svg")
           this.parsingSVG = false;
         if (this._knownVoidHTMLElement(closeTagName))
-          throw new ParseError("CLOSE_TAG_FOR_VOID_ELEMENT", this,
-                               closeTagName, token);
+          throw new ParseError("CLOSE_TAG_FOR_VOID_ELEMENT", this, closeTagName, token);
         if (!this.domBuilder.currentNode.parseInfo)
-          throw new ParseError("UNEXPECTED_CLOSE_TAG", this, closeTagName,
-                               token);
+          throw new ParseError("UNEXPECTED_CLOSE_TAG", this, closeTagName, token);
         this.domBuilder.currentNode.parseInfo.closeTag = {
           start: token.interval.start
         };
         var openTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
         if (closeTagName != openTagName)
-          throw new ParseError("MISMATCHED_CLOSE_TAG", this, openTagName,
-                               closeTagName, token);
+          throw new ParseError("MISMATCHED_CLOSE_TAG", this, openTagName, closeTagName, token);
         this._parseEndCloseTag();
       }
 
       else {
+
         if (tagName) {
           var badSVG = this.parsingSVG && !this._knownSVGElement(tagName);
           var badHTML = !this.parsingSVG && !this._knownHTMLElement(tagName) && !this._isCustomElement(tagName);
@@ -300,14 +285,15 @@ module.exports = (function(){
 
         // If the preceding tag and the active tag is omittableCloseTag pairs,
         // we tell our DOM builder that we're done.
-        if (activeTagNode && parentTagNode != this.domBuilder.fragment){
-          var activeTagName = activeTagNode.nodeName.toLowerCase();
+        if (this.activeTagNode && this.parentTagNode != this.domBuilder.fragment){
+          var activeTagName = this.activeTagNode.nodeName.toLowerCase();
           if(this._knownOmittableCloseTags(activeTagName, tagName)) {
             this.domBuilder.popElement();
           }
         }
+
         // Store currentNode as the parentTagNode
-        parentTagNode = this.domBuilder.currentNode;
+        this.parentTagNode = this.domBuilder.currentNode;
         this.domBuilder.pushElement(tagName, parseInfo, nameSpace);
 
         if (!this.stream.end()) {
@@ -363,7 +349,7 @@ module.exports = (function(){
     },
     // This helper function checks if the current tag contains an attribute
     containsAttribute: function (stream) {
-      return stream.eat(nameStartChar);
+      return stream.eat(this.nameChars.nameStartChar);
     },
     // This helper function parses the end of a closing tag. It expects
     // the stream to be right after the end of the closing tag's tag
@@ -388,11 +374,22 @@ module.exports = (function(){
       var tagMark = this.stream.pos,
           startMark = this.stream.pos;
 
+/*
+      // is the nesting found here allowed?
+      if(this.parentTagNode) {
+        var parentTag = this.parentTagNode.localName;
+        var childTag = tagName;
+        if (!this.mayElementContain(parentTag, childTag)) {
+          throw new ParseError("INVALID_TAG_NESTING", parentTag, childTag, token);
+        }
+      }
+*/
+
       while (!this.stream.end()) {
 
         if (this.containsAttribute(this.stream)) {
           if (this.stream.peek !== "=") {
-            this.stream.eatWhile(nameChar);
+            this.stream.eatWhile(this.nameChars.nameChar);
           }
           this._parseAttribute(tagName);
         }
@@ -420,9 +417,9 @@ module.exports = (function(){
 
           // If the open tag represents a optional-omit-close-tag element, there may be
           // an optional closing element, so we save the currentNode into activeTag for next step check.
-          activeTagNode = false;
+          this.activeTagNode = false;
           if (tagName && this._knownOmittableCloseTagHtmlElement(tagName)){
-            activeTagNode = this.domBuilder.currentNode;
+            this.activeTagNode = this.domBuilder.currentNode;
           }
 
           // If the opening tag represents a `<style>` element, we hand
@@ -451,12 +448,12 @@ module.exports = (function(){
           }
 
           // if there is no more content in the parent element, we tell DOM builder that we're done.
-          if(parentTagNode && parentTagNode != this.domBuilder.fragment) {
-            var parentTagName = parentTagNode.nodeName.toLowerCase(),
-                nextIsParent = isNextTagParent(this.stream, parentTagName),
-                needsEndTag = !allowsOmmitedEndTag(parentTagName, tagName),
+          if(this.parentTagNode && this.parentTagNode != this.domBuilder.fragment) {
+            var parentTagName = this.parentTagNode.nodeName.toLowerCase(),
+                nextIsParent = this.isNextTagParent(this.stream, parentTagName),
+                needsEndTag = !this.allowsOmmitedEndTag(parentTagName, tagName),
                 optionalEndTag = this._knownOmittableCloseTagHtmlElement(parentTagName),
-                nextTagCloses = isNextCloseTag(this.stream);
+                nextTagCloses = this.isNextCloseTag(this.stream);
             if(nextIsParent && (needsEndTag || (optionalEndTag && nextTagCloses))) {
               if(this._knownOmittableCloseTagHtmlElement(tagName)) {
                 this.domBuilder.popElement();
@@ -532,13 +529,13 @@ module.exports = (function(){
         var valueTok = this.stream.makeToken();
 
         //Add a new validator to check if there is a http link in a https page
-        if (checkMixedContent && valueTok.value.match(/http:/) && isActiveContent(tagName, nameTok.value)) {
+        if (this.checkMixedContent && valueTok.value.match(/http:/) && this.isActiveContent(tagName, nameTok.value)) {
           this.warnings.push(
             new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok)
           );
         }
 
-        var unquotedValue = replaceEntityRefs(valueTok.value.slice(1, -1));
+        var unquotedValue = this.replaceEntityRefs(valueTok.value.slice(1, -1));
         this.domBuilder.attribute(nameTok.value, unquotedValue, {
           name: nameTok.interval,
           value: valueTok.interval
@@ -551,8 +548,6 @@ module.exports = (function(){
       }
     }
   };
-
-  HTMLParser.replaceEntityRefs = replaceEntityRefs;
 
   return HTMLParser;
 }());
