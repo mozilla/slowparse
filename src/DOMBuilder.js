@@ -10,12 +10,12 @@
 module.exports = (function(){
   "use strict";
 
-  function DOMBuilder(document, disallowActiveAttributes) {
-    this.document = document;
-    this.fragment = document.createDocumentFragment();
-    this.currentNode = this.fragment;
+  var DocumentFragment = require("./DocumentFragment");
+
+  function DOMBuilder(disallowActiveAttributes) {
+    this.fragment = new DocumentFragment();
+    this.currentNode = this.fragment.node;
     this.contexts = [];
-    this.pushContext("html", 0);
     this.disallowActiveAttributes = disallowActiveAttributes;
   }
 
@@ -24,8 +24,8 @@ module.exports = (function(){
     // The element is appended to the currently active element and is
     // then made the new currently active element.
     pushElement: function(tagName, parseInfo, nameSpace) {
-      var node = (nameSpace ? this.document.createElementNS(nameSpace,tagName)
-                            : this.document.createElement(tagName));
+      var node = (nameSpace ? this.fragment.createElementNS(nameSpace, tagName)
+                            : this.fragment.createElement(tagName));
       node.parseInfo = parseInfo;
       this.currentNode.appendChild(node);
       this.currentNode = node;
@@ -45,25 +45,26 @@ module.exports = (function(){
     // This method appends an HTML comment node to the currently active
     // element.
     comment: function(data, parseInfo) {
-      var comment = this.document.createComment('');
+      var comment = this.fragment.createComment('');
       comment.nodeValue = data;
       comment.parseInfo = parseInfo;
       this.currentNode.appendChild(comment);
     },
     // This method appends an attribute to the currently active element.
     attribute: function(name, value, parseInfo) {
-      var attrNode = this.document.createAttribute(name);
+      var attrNode = this.fragment.createAttribute(name);
       attrNode.parseInfo = parseInfo;
       if (this.disallowActiveAttributes && name.substring(0,2).toLowerCase() === "on") {
         attrNode.nodeValue = "";
       } else {
         attrNode.nodeValue = value;
       }
-      this.currentNode.attributes.setNamedItem(attrNode);
+      this.currentNode.attributes.push(attrNode);
+      this.currentNode._attributeMap[attrNode.nodeName] = attrNode.nodeValue;
     },
     // This method appends a text node to the currently active element.
     text: function(text, parseInfo) {
-      var textNode = this.document.createTextNode(text);
+      var textNode = this.fragment.createTextNode(text);
       textNode.parseInfo = parseInfo;
       this.currentNode.appendChild(textNode);
     }
