@@ -1,4 +1,136 @@
-!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.Slowparse=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.Slowparse = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+// Slowparse is a token stream parser for HTML and CSS text,
+// recording regions of interest during the parse run and
+// signaling any errors detected accompanied by relevant
+// regions in the text stream, to make debugging easy. Each
+// error type is documented in the [error specification][].
+//
+// Slowparse also builds a DOM as it goes, attaching metadata
+// to each node build that points to where it came from in
+// the original source.
+//
+// For more information on the rationale behind Slowparse, as
+// well as its design goals, see the [README][].
+//
+// If [RequireJS] is detected, this file is defined as a module via
+// `define()`. Otherwise, a global called `Slowparse` is exposed.
+//
+// ## Implementation
+//
+// Slowparse is effectively a finite state machine for
+// HTML and CSS strings, and will switch between the HTML
+// and CSS parsers while maintaining a single token stream.
+//
+//   [RequireJS]: http://requirejs.org/
+//   [error specification]: spec/
+//   [README]: https://github.com/mozilla/slowparse#readme
+(function() {
+  "use strict";
+
+  var Stream = require("./Stream");
+  var CSSParser = require("./CSSParser");
+  var HTMLParser = require("./HTMLParser");
+  var DOMBuilder = require("./DOMBuilder");
+
+  // ### Exported Symbols
+  //
+  // `Slowparse` is the object that holds all exported symbols from
+  // this library.
+  var Slowparse = {
+    // We export our list of recognized HTML elements and CSS properties
+    // for clients to use if needed.
+    HTML_ELEMENT_NAMES: HTMLParser.prototype.voidHtmlElements.concat(
+                          HTMLParser.prototype.htmlElements.concat(
+                            HTMLParser.prototype.obsoleteHtmlElements)),
+    CSS_PROPERTY_NAMES: CSSParser.prototype.cssProperties,
+
+    // We also export a few internal symbols for use by Slowparse's
+    // testing suite.
+    replaceEntityRefs: HTMLParser.replaceEntityRefs,
+    Stream: Stream,
+
+    // `Slowparse.HTML()` is the primary function we export. Given
+    // a DOM document object (or a DOMBuilder instance) and a string
+    // of HTML, we return an object with the following keys:
+    //
+    // * `document` is a DOM document fragment containing the DOM of
+    //   the parsed HTML. If an error occurred while parsing, this
+    //   document is incomplete, and represents what was built before
+    //   the error was encountered.
+    //
+    // * `error` is a JSON-serializable object representing any error
+    //   that occurred while parsing. If no errors occurred while parsing,
+    //   its value is `null`. For a list of the types of errors that
+    //   can be returned, see the [error specification][].
+    //
+    // An array of error detector functions can also be passed as a
+    // third argument to this function. An error detector function takes
+    // the HTML and generated document fragment as arguments and returns
+    // an error object if an error is detected, or `undefined` otherwise.
+    // This can be used for further error checking on the parsed document.
+    //
+    //   [error specification]: spec/
+    HTML: function(document, html, options) {
+      options = options || {};
+      var stream = new Stream(html),
+          domBuilder,
+          parser,
+          warnings = null,
+          error = null,
+          errorDetectors = options.errorDetectors || [],
+          disallowActiveAttributes = (typeof options.disallowActiveAttributes === "undefined") ? false : options.disallowActiveAttributes;
+
+      domBuilder = new DOMBuilder(disallowActiveAttributes);
+      parser = new HTMLParser(stream, domBuilder);
+
+      try {
+        var _ = parser.parse();
+        if (_.warnings) {
+          warnings = _.warnings;
+        }
+      } catch (e) {
+        if (e.parseInfo) {
+          error = e.parseInfo;
+        } else
+          throw e;
+      }
+
+      errorDetectors.forEach(function(detector) {
+        if (!error)
+          error = detector(html, domBuilder.fragment.node) || null;
+      });
+
+      return {
+        document: domBuilder.fragment.node,
+        contexts: domBuilder.contexts,
+        warnings: warnings,
+        error: error
+      };
+    },
+    // `Slowparse.findError()` just returns any error in the given HTML
+    // string, or `null` if the HTML contains no errors.
+    findError: function(html, errorDetectors) {
+      return this.HTML(document, html, errorDetectors).error;
+    }
+  };
+
+  // AMD context
+  if (typeof define !== "undefined") {
+    define(function() { return Slowparse; });
+  }
+
+  // Node.js context
+  else if(typeof module !== "undefined" && module.exports) {
+    module.exports = Slowparse;
+  }
+
+  // browser context
+  else if (typeof window !== "undefined") {
+    window.Slowparse = Slowparse;
+  }
+}());
+
+},{"./CSSParser":2,"./DOMBuilder":3,"./HTMLParser":5,"./Stream":9}],2:[function(require,module,exports){
 // ### CSS Parsing
 //
 // `CSSParser` is our internal CSS token stream parser object. This object
@@ -537,7 +669,7 @@ module.exports = (function(){
 
 }());
 
-},{"./ParseError":4,"./checkMixedContent":7}],2:[function(require,module,exports){
+},{"./ParseError":7,"./checkMixedContent":10}],3:[function(require,module,exports){
   // ### The DOM Builder
   //
   // The DOM builder is used to construct a DOM representation of the
@@ -550,12 +682,12 @@ module.exports = (function(){
 module.exports = (function(){
   "use strict";
 
-  function DOMBuilder(document, disallowActiveAttributes) {
-    this.document = document;
-    this.fragment = document.createDocumentFragment();
-    this.currentNode = this.fragment;
+  var DocumentFragment = require("./DocumentFragment");
+
+  function DOMBuilder(disallowActiveAttributes) {
+    this.fragment = new DocumentFragment();
+    this.currentNode = this.fragment.node;
     this.contexts = [];
-    this.pushContext("html", 0);
     this.disallowActiveAttributes = disallowActiveAttributes;
   }
 
@@ -564,8 +696,8 @@ module.exports = (function(){
     // The element is appended to the currently active element and is
     // then made the new currently active element.
     pushElement: function(tagName, parseInfo, nameSpace) {
-      var node = (nameSpace ? this.document.createElementNS(nameSpace,tagName)
-                            : this.document.createElement(tagName));
+      var node = (nameSpace ? this.fragment.createElementNS(nameSpace, tagName)
+                            : this.fragment.createElement(tagName));
       node.parseInfo = parseInfo;
       this.currentNode.appendChild(node);
       this.currentNode = node;
@@ -585,25 +717,26 @@ module.exports = (function(){
     // This method appends an HTML comment node to the currently active
     // element.
     comment: function(data, parseInfo) {
-      var comment = this.document.createComment('');
+      var comment = this.fragment.createComment('');
       comment.nodeValue = data;
       comment.parseInfo = parseInfo;
       this.currentNode.appendChild(comment);
     },
     // This method appends an attribute to the currently active element.
     attribute: function(name, value, parseInfo) {
-      var attrNode = this.document.createAttribute(name);
+      var attrNode = this.fragment.createAttribute(name);
       attrNode.parseInfo = parseInfo;
       if (this.disallowActiveAttributes && name.substring(0,2).toLowerCase() === "on") {
         attrNode.nodeValue = "";
       } else {
         attrNode.nodeValue = value;
       }
-      this.currentNode.attributes.setNamedItem(attrNode);
+      this.currentNode.attributes.push(attrNode);
+      this.currentNode._attributeMap[attrNode.nodeName] = attrNode.nodeValue;
     },
     // This method appends a text node to the currently active element.
     text: function(text, parseInfo) {
-      var textNode = this.document.createTextNode(text);
+      var textNode = this.fragment.createTextNode(text);
       textNode.parseInfo = parseInfo;
       this.currentNode.appendChild(textNode);
     }
@@ -613,7 +746,44 @@ module.exports = (function(){
 
 }());
 
-},{}],3:[function(require,module,exports){
+},{"./DocumentFragment":4}],4:[function(require,module,exports){
+  // ### DocumentFragment Shim
+  //
+  // A representation of a document fragment that can be normally generated
+  // by calling `document.createDocumentFragment`. Since the document fragment
+  // is itself a node, it inherits all properties of a node.
+module.exports = (function(){
+  "use strict";
+
+  var Node = require("./Node");
+
+  function DocumentFragment() {
+    this.node = new Node(Node.DOCUMENT_FRAGMENT_NODE, "#document-fragment");
+    this.node._ownerDocument = this;
+  }
+
+  DocumentFragment.prototype = {
+    createTextNode: function(data) {
+      return new Node(Node.TEXT_NODE, "#text", data);
+    },
+    createElementNS: function(namespaceURI, qualifiedName) {
+      return new Node(Node.ELEMENT_NODE, qualifiedName, false, namespaceURI);
+    },
+    createElement: function(tagName) {
+      return this.createElementNS(false, tagName);
+    },
+    createComment: function(data) {
+      return new Node(Node.COMMENT_NODE, "#comment", data);
+    },
+    createAttribute: function(name) {
+      return new Node(Node.ATTRIBUTE_NODE, name);
+    }
+  };
+
+  return DocumentFragment;
+}());
+
+},{"./Node":6}],5:[function(require,module,exports){
 // ### HTML Parsing
 //
 // The HTML token stream parser object has references to the stream,
@@ -624,6 +794,7 @@ module.exports = (function(){
 
   var ParseError = require("./ParseError");
   var CSSParser = require("./CSSParser");
+  var voidHtmlElements = require("./voidHtmlElements");
 
   // ### Character Entity Parsing
   //
@@ -725,9 +896,7 @@ module.exports = (function(){
     html5Doctype: "<!DOCTYPE html>",
 
     // Void HTML elements are the ones that don't need to have a closing tag.
-    voidHtmlElements: ["area", "base", "br", "col", "command", "embed", "hr",
-                       "img", "input", "keygen", "link", "meta", "param",
-                       "source", "track", "wbr"],
+    voidHtmlElements: voidHtmlElements,
 
     // Tag Omission Rules, based on the rules on optional tags as outlined in
     // http://www.w3.org/TR/html5/syntax.html#optional-tags
@@ -854,13 +1023,12 @@ module.exports = (function(){
       // an HTML5 doctype tag. We're currently quite strict and don't
       // parse XHTML or other doctypes.
       if (this.stream.match(this.html5Doctype, true, true))
-        this.domBuilder.fragment.parseInfo = {
+        this.domBuilder.fragment.node.parseInfo = {
           doctype: {
             start: 0,
             end: this.stream.pos
           }
         };
-
       // Next, we parse "tag soup", creating text nodes and diving into
       // tags as we find them.
       while (!this.stream.end()) {
@@ -875,7 +1043,7 @@ module.exports = (function(){
 
       // At the end, it's possible we're left with an open tag, so
       // we test for that.
-      if (this.domBuilder.currentNode != this.domBuilder.fragment)
+      if (this.domBuilder.currentNode != this.domBuilder.fragment.node)
         throw new ParseError("UNCLOSED_TAG", this);
 
       return {
@@ -955,7 +1123,7 @@ module.exports = (function(){
 
         // If the preceding tag and the active tag is omittableCloseTag pairs,
         // we tell our DOM builder that we're done.
-        if (activeTagNode && parentTagNode != this.domBuilder.fragment){
+        if (activeTagNode && parentTagNode != this.domBuilder.fragment.node){
           var activeTagName = activeTagNode.nodeName.toLowerCase();
           if(this._knownOmittableCloseTags(activeTagName, tagName)) {
             this.domBuilder.popElement();
@@ -1105,7 +1273,7 @@ module.exports = (function(){
           }
 
           // if there is no more content in the parent element, we tell DOM builder that we're done.
-          if(parentTagNode && parentTagNode != this.domBuilder.fragment) {
+          if(parentTagNode && parentTagNode != this.domBuilder.fragment.node) {
             var parentTagName = parentTagNode.nodeName.toLowerCase(),
                 nextIsParent = isNextTagParent(this.stream, parentTagName),
                 needsEndTag = !allowsOmmitedEndTag(parentTagName, tagName),
@@ -1210,7 +1378,129 @@ module.exports = (function(){
 
   return HTMLParser;
 }());
-},{"./CSSParser":1,"./ParseError":4,"./checkMixedContent":7}],4:[function(require,module,exports){
+
+},{"./CSSParser":2,"./ParseError":7,"./checkMixedContent":10,"./voidHtmlElements":11}],6:[function(require,module,exports){
+  // ### DOM Node Shim
+  //
+  // This represents a superficial form of a DOM node which contains most of
+  // the properties that a regular DOM node would contain, but only the ones
+  // needed by slowparse.
+module.exports = (function(){
+  "use strict";
+
+  var voidHtmlElements = require("./voidHtmlElements");
+
+  function Node(nodeType, nodeName, nodeValue, namespaceURI) {
+    this.nodeType = nodeType;
+    this.nodeValue = nodeValue || "";
+    this.namespaceURI = namespaceURI || "";
+    this.parentNode = false;
+    this.nextSibling = false;
+    this.isVoid = voidHtmlElements.indexOf(nodeName) > -1;
+    this.childNodes = [];
+    this.attributes = [];
+    this._attributeMap = {};
+    switch(this.nodeType) {
+      case Node.ELEMENT_NODE:
+        this.nodeName = nodeName.toUpperCase();
+        break;
+      case Node.ATTRIBUTE_NODE:
+        this.nodeName = nodeName.toLowerCase();
+        break;
+      default:
+        this.nodeName = nodeName;
+    }
+  }
+
+  Node.prototype = {
+    // Add a node to the current node as a child
+    appendChild: function(node) {
+      var lastChild = this.childNodes.slice(-1)[0];
+      if(lastChild) {
+        lastChild.nextSibling = node;
+      }
+
+      node.parentNode = this;
+      this.childNodes.push(node);
+    },
+    // Create a deep copy of the current node
+    clone: function() {
+      var node = new Node(this.nodeType, this.nodeName, this.nodeValue, this.namespaceURI);
+      node.nextSibling = this.nextSibling ? this.nextSibling.clone() : false;
+      node.isVoid = this.isVoid;
+      node.childNodes = this.childNodes.map(function(childNode) {
+        return childNode.clone();
+      });
+      node.attributes = this.attributes.map(function(attribute) {
+        return attribute.clone();
+      });
+      node._attributeMap = this._attributeMap;
+
+      return node;
+    },
+    // Get the attribute value of an element node
+    getAttribute: function(name) {
+      return this.nodeType === Node.ELEMENT_NODE && this._attributeMap[name.toLowerCase()];
+    }
+  };
+
+  Object.defineProperties(Node.prototype, {
+    "innerHTML": {
+      get: function() {
+        if(this.nodeType !== Node.ELEMENT_NODE) {
+          return null;
+        }
+
+        var innerHTML = "";
+
+        this.childNodes.forEach(function(childNode) {
+          innerHTML += childNode.outerHTML || "";
+        });
+
+        return innerHTML;
+      }
+    },
+    "outerHTML": {
+      get: function() {
+        if(this.nodeType === Node.ATTRIBUTE_NODE) {
+          return null;
+        }
+        if(this.nodeType === Node.COMMENT_NODE) {
+          return "<!--" + this.nodeValue + "-->";
+        }
+        if(this.nodeType !== Node.ELEMENT_NODE) {
+          return this.nodeValue;
+        }
+
+        var attributes = this._attributeMap;
+        var attributeStr = "";
+        attributeStr = Object.keys(attributes).map(function(attrName) {
+          return attrName + '="' + attributes[attrName] + '"';
+        }).join(" ");
+        if(attributeStr.length > 0) {
+          attributeStr = " " + attributeStr;
+        }
+
+        var nodeName = this.nodeName.toLowerCase();
+        var openingTag = "<" + nodeName + attributeStr + ">";
+        var closingTag = this.isVoid ? "" : "</" + nodeName + ">";
+
+        return openingTag + (this.innerHTML || "") + closingTag;
+      }
+    }
+  });
+
+  // Different node type constants
+  Node.ELEMENT_NODE = 1;
+  Node.ATTRIBUTE_NODE = 2;
+  Node.TEXT_NODE = 3;
+  Node.COMMENT_NODE = 8;
+  Node.DOCUMENT_FRAGMENT_NODE = 11;
+
+  return Node;
+}());
+
+},{"./voidHtmlElements":11}],7:[function(require,module,exports){
 // ### Errors
 //
 // `ParseError` is an internal error class used to indicate a parsing error.
@@ -1252,7 +1542,7 @@ module.exports = (function() {
   return ParseError;
 }());
 
-},{"./ParseErrorBuilders":5}],5:[function(require,module,exports){
+},{"./ParseErrorBuilders":8}],8:[function(require,module,exports){
 // `ParseErrorBuilders` contains Factory functions for all our types of
 // parse errors, indexed by error type.
 //
@@ -1635,7 +1925,7 @@ module.exports = (function() {
 
 }());
 
-},{}],6:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 // ### Streams
 //
 // `Stream` is an internal class used for tokenization. The interface for
@@ -1830,143 +2120,17 @@ module.exports = (function(){
   return Stream;
 }());
 
-},{"./ParseError":4,"./ParseErrorBuilders":5}],7:[function(require,module,exports){
+},{"./ParseError":7,"./ParseErrorBuilders":8}],10:[function(require,module,exports){
 //Define a property checker for https page
 module.exports = {
   mixedContent: (typeof window !== "undefined" ? (window.location.protocol === "https:") : false)
 };
 
-},{}],8:[function(require,module,exports){
-// Slowparse is a token stream parser for HTML and CSS text,
-// recording regions of interest during the parse run and
-// signaling any errors detected accompanied by relevant
-// regions in the text stream, to make debugging easy. Each
-// error type is documented in the [error specification][].
-//
-// Slowparse also builds a DOM as it goes, attaching metadata
-// to each node build that points to where it came from in
-// the original source.
-//
-// For more information on the rationale behind Slowparse, as
-// well as its design goals, see the [README][].
-//
-// If [RequireJS] is detected, this file is defined as a module via
-// `define()`. Otherwise, a global called `Slowparse` is exposed.
-//
-// ## Implementation
-//
-// Slowparse is effectively a finite state machine for
-// HTML and CSS strings, and will switch between the HTML
-// and CSS parsers while maintaining a single token stream.
-//
-//   [RequireJS]: http://requirejs.org/
-//   [error specification]: spec/
-//   [README]: https://github.com/mozilla/slowparse#readme
-(function() {
-  "use strict";
+},{}],11:[function(require,module,exports){
+// A list of void HTML elements
+module.exports = ["area", "base", "br", "col", "command", "embed", "hr",
+                  "img", "input", "keygen", "link", "meta", "param",
+                  "source", "track", "wbr"];
 
-  var Stream = require("./Stream");
-  var CSSParser = require("./CSSParser");
-  var HTMLParser = require("./HTMLParser");
-  var DOMBuilder = require("./DOMBuilder");
-
-  // ### Exported Symbols
-  //
-  // `Slowparse` is the object that holds all exported symbols from
-  // this library.
-  var Slowparse = {
-    // We export our list of recognized HTML elements and CSS properties
-    // for clients to use if needed.
-    HTML_ELEMENT_NAMES: HTMLParser.prototype.voidHtmlElements.concat(
-                          HTMLParser.prototype.htmlElements.concat(
-                            HTMLParser.prototype.obsoleteHtmlElements)),
-    CSS_PROPERTY_NAMES: CSSParser.prototype.cssProperties,
-
-    // We also export a few internal symbols for use by Slowparse's
-    // testing suite.
-    replaceEntityRefs: HTMLParser.replaceEntityRefs,
-    Stream: Stream,
-
-    // `Slowparse.HTML()` is the primary function we export. Given
-    // a DOM document object (or a DOMBuilder instance) and a string
-    // of HTML, we return an object with the following keys:
-    //
-    // * `document` is a DOM document fragment containing the DOM of
-    //   the parsed HTML. If an error occurred while parsing, this
-    //   document is incomplete, and represents what was built before
-    //   the error was encountered.
-    //
-    // * `error` is a JSON-serializable object representing any error
-    //   that occurred while parsing. If no errors occurred while parsing,
-    //   its value is `null`. For a list of the types of errors that
-    //   can be returned, see the [error specification][].
-    //
-    // An array of error detector functions can also be passed as a
-    // third argument to this function. An error detector function takes
-    // the HTML and generated document fragment as arguments and returns
-    // an error object if an error is detected, or `undefined` otherwise.
-    // This can be used for further error checking on the parsed document.
-    //
-    //   [error specification]: spec/
-    HTML: function(document, html, options) {
-      options = options || {};
-      var stream = new Stream(html),
-          domBuilder,
-          parser,
-          warnings = null,
-          error = null,
-          errorDetectors = options.errorDetectors || [],
-          disallowActiveAttributes = (typeof options.disallowActiveAttributes === "undefined") ? false : options.disallowActiveAttributes;
-
-      domBuilder = new DOMBuilder(document, disallowActiveAttributes);
-      parser = new HTMLParser(stream, domBuilder);
-
-      try {
-        var _ = parser.parse();
-        if (_.warnings) {
-          warnings = _.warnings;
-        }
-      } catch (e) {
-        if (e.parseInfo) {
-          error = e.parseInfo;
-        } else
-          throw e;
-      }
-
-      errorDetectors.forEach(function(detector) {
-        if (!error)
-          error = detector(html, domBuilder.fragment) || null;
-      });
-
-      return {
-        document: domBuilder.fragment,
-        contexts: domBuilder.contexts,
-        warnings: warnings,
-        error: error
-      };
-    },
-    // `Slowparse.findError()` just returns any error in the given HTML
-    // string, or `null` if the HTML contains no errors.
-    findError: function(html, errorDetectors) {
-      return this.HTML(document, html, errorDetectors).error;
-    }
-  };
-
-  // AMD context
-  if (typeof define !== "undefined") {
-    define(function() { return Slowparse; });
-  }
-
-  // Node.js context
-  else if(typeof module !== "undefined" && module.exports) {
-    module.exports = Slowparse;
-  }
-
-  // browser context
-  else if (typeof window !== "undefined") {
-    window.Slowparse = Slowparse;
-  }
-}());
-
-},{"./CSSParser":1,"./DOMBuilder":2,"./HTMLParser":3,"./Stream":6}]},{},[8])(8)
+},{}]},{},[1])(1)
 });

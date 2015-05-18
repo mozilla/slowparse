@@ -100,7 +100,7 @@ module.exports = function(Slowparse, jsdom) {
     var document = doc._ownerDocument;
     var div = document.createElement("div");
     for (var i = 0; i < doc.childNodes.length; i++) {
-      div.appendChild(doc.childNodes[i].cloneNode(true));
+      div.appendChild(doc.childNodes[i].clone());
     }
     return div.innerHTML;
   }

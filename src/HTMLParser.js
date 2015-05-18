@@ -8,6 +8,7 @@ module.exports = (function(){
 
   var ParseError = require("./ParseError");
   var CSSParser = require("./CSSParser");
+  var voidHtmlElements = require("./voidHtmlElements");
 
   // ### Character Entity Parsing
   //
@@ -109,9 +110,7 @@ module.exports = (function(){
     html5Doctype: "<!DOCTYPE html>",
 
     // Void HTML elements are the ones that don't need to have a closing tag.
-    voidHtmlElements: ["area", "base", "br", "col", "command", "embed", "hr",
-                       "img", "input", "keygen", "link", "meta", "param",
-                       "source", "track", "wbr"],
+    voidHtmlElements: voidHtmlElements,
 
     // Tag Omission Rules, based on the rules on optional tags as outlined in
     // http://www.w3.org/TR/html5/syntax.html#optional-tags
@@ -238,13 +237,12 @@ module.exports = (function(){
       // an HTML5 doctype tag. We're currently quite strict and don't
       // parse XHTML or other doctypes.
       if (this.stream.match(this.html5Doctype, true, true))
-        this.domBuilder.fragment.parseInfo = {
+        this.domBuilder.fragment.node.parseInfo = {
           doctype: {
             start: 0,
             end: this.stream.pos
           }
         };
-
       // Next, we parse "tag soup", creating text nodes and diving into
       // tags as we find them.
       while (!this.stream.end()) {
@@ -259,7 +257,7 @@ module.exports = (function(){
 
       // At the end, it's possible we're left with an open tag, so
       // we test for that.
-      if (this.domBuilder.currentNode != this.domBuilder.fragment)
+      if (this.domBuilder.currentNode != this.domBuilder.fragment.node)
         throw new ParseError("UNCLOSED_TAG", this);
 
       return {
@@ -339,7 +337,7 @@ module.exports = (function(){
 
         // If the preceding tag and the active tag is omittableCloseTag pairs,
         // we tell our DOM builder that we're done.
-        if (activeTagNode && parentTagNode != this.domBuilder.fragment){
+        if (activeTagNode && parentTagNode != this.domBuilder.fragment.node){
           var activeTagName = activeTagNode.nodeName.toLowerCase();
           if(this._knownOmittableCloseTags(activeTagName, tagName)) {
             this.domBuilder.popElement();
@@ -489,7 +487,7 @@ module.exports = (function(){
           }
 
           // if there is no more content in the parent element, we tell DOM builder that we're done.
-          if(parentTagNode && parentTagNode != this.domBuilder.fragment) {
+          if(parentTagNode && parentTagNode != this.domBuilder.fragment.node) {
             var parentTagName = parentTagNode.nodeName.toLowerCase(),
                 nextIsParent = isNextTagParent(this.stream, parentTagName),
                 needsEndTag = !allowsOmmitedEndTag(parentTagName, tagName),

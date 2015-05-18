@@ -79,7 +79,7 @@
           errorDetectors = options.errorDetectors || [],
           disallowActiveAttributes = (typeof options.disallowActiveAttributes === "undefined") ? false : options.disallowActiveAttributes;
 
-      domBuilder = new DOMBuilder(document, disallowActiveAttributes);
+      domBuilder = new DOMBuilder(disallowActiveAttributes);
       parser = new HTMLParser(stream, domBuilder);
 
       try {
@@ -96,11 +96,11 @@
 
       errorDetectors.forEach(function(detector) {
         if (!error)
-          error = detector(html, domBuilder.fragment) || null;
+          error = detector(html, domBuilder.fragment.node) || null;
       });
 
       return {
-        document: domBuilder.fragment,
+        document: domBuilder.fragment.node,
         contexts: domBuilder.contexts,
         warnings: warnings,
         error: error

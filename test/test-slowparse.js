@@ -1,5 +1,7 @@
 module.exports = function(Slowparse, window, document, validators) {
 
+  var Node = require('../src/Node');
+
   var ok = validators.ok;
   var equal = validators.equal;
   var test = validators.test;
@@ -129,7 +131,7 @@ module.exports = function(Slowparse, window, document, validators) {
     equal(script.childNodes.length, 1, "<script> has one child");
     var textNode = script.childNodes[0];
 
-    equal(textNode.nodeType, textNode.TEXT_NODE,
+    equal(textNode.nodeType, Node.TEXT_NODE,
           "<script>'s child is a text node.");
     assertParseIntervals(html, textNode, "textNode", {
       'parseInfo': 'x < 3;'
@@ -156,7 +158,7 @@ module.exports = function(Slowparse, window, document, validators) {
 
     var textNode = p.childNodes[0];
 
-    equal(textNode.nodeType, textNode.TEXT_NODE, "<p>'s child is a text node.");
+    equal(textNode.nodeType, Node.TEXT_NODE, "<p>'s child is a text node.");
     assertParseIntervals(html, textNode, "textNode", {
       'parseInfo': 'hello there'
     });
