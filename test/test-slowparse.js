@@ -597,6 +597,12 @@ module.exports = function(Slowparse, window, document, validators) {
     ok(!result.error, "no error on omitted </p>");
   });
 
+  test("parsing elements with optional close tags: <datalist><option>a<option>b</datalist>", function() {
+    var html = '<datalist><option>a<option>b</datalist>';
+    var result = parse(html);
+    ok(!result.error, "no error on omitted </option>");
+  });
+
   test("intentional fail for optional close tag (incorrect use). pass = not accepted", function() {
     var html = '<div><p>text\n<a>more text</a></div>';
     var result = parse(html);
