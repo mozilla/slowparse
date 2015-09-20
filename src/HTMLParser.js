@@ -116,7 +116,8 @@ module.exports = (function(){
     // http://www.w3.org/TR/html5/syntax.html#optional-tags
 
     // HTML elements that with omittable close tag
-    omittableCloseTagHtmlElements: ["p", "li", "td", "th", "option"],
+    omittableCloseTagHtmlElements: ["p", "li", "thead", "tbody", "tfoot", "tr", "td", "th",
+        "dt", "dd", "rb", "rt", "rtc", "rp", "option", "optgroup" ],
 
     // HTML elements that paired with omittable close tag list
     omittableCloseTags: {
@@ -128,12 +129,14 @@ module.exports = (function(){
       "td": ["th", "td"],
       "tr": ["tr"],
       "li": ["li"],
+      "dt": ["dt", "dd"],
+      "dd": ["dt", "dd"],
       "rb": ["rb","rt","rtc","rp"],
       "rt": ["rb","rt","rtc","rp"],
       "rtc": ["rb","rtc","rp"],
       "rp": ["rb","rt","rtc","rp"],
       "optgroup": ["optgroup"],
-      "option": ["option"],
+      "option": ["option", "optgroup"],
       "thead": ["tbody", "tfoot"],
       "tbody": ["tbody", "tfoot"],
       "tfoot": ["tbody"]
