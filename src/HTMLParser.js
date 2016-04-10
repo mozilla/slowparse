@@ -233,16 +233,34 @@ module.exports = (function(){
     // Any parse errors along the way will result in the code
     // throwing a `ParseError`.
     parse: function() {
+      // Before checking for an HTML5 doctype tag, we eat all whitespace and/or
+      // parse all comments appearing before the doctype.
+      this.stream.eatSpace();
+
+      while (this.stream.peek() == '<') {
+        this._buildTextNode();
+        if (this.stream.match('<!--', true)) {
+          this.domBuilder.pushContext("text", this.stream.pos);
+          this._parseComment();
+          this.domBuilder.pushContext("html", this.stream.pos);
+          this.stream.eatSpace();
+        } else {
+          break;
+        }
+      }
+
       // First we check to see if the beginning of our stream is
       // an HTML5 doctype tag. We're currently quite strict and don't
       // parse XHTML or other doctypes.
+      var start = this.stream.pos;
       if (this.stream.match(this.html5Doctype, true, true))
         this.domBuilder.fragment.node.parseInfo = {
           doctype: {
-            start: 0,
+            start: start,
             end: this.stream.pos
           }
         };
+
       // Next, we parse "tag soup", creating text nodes and diving into
       // tags as we find them.
       while (!this.stream.end()) {

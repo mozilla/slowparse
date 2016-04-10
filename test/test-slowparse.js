@@ -42,6 +42,28 @@ module.exports = function(Slowparse, window, document, validators) {
     });
   });
 
+  test("parsing of valid DOCTYPE with whitespace", function() {
+    var html = ' \t\n<!DOCTYPE html><p>hi</p>';
+    var doc = parseWithoutErrors(html);
+    assertParseIntervals(html, doc, "document", {
+      'parseInfo.doctype': '<!DOCTYPE html>'
+    });
+  });
+
+  test("parsing of valid DOCTYPE with comments", function() {
+    var html = '\n<!--hello-->\n<!--world-->\n<!DOCTYPE html><p>hi</p>';
+    var doc = parseWithoutErrors(html);
+    assertParseIntervals(html, doc, "document", {
+      'parseInfo.doctype': '<!DOCTYPE html>'
+    });
+    assertParseIntervals(html, doc.childNodes[1], "comment", {
+      'parseInfo': '<!--hello-->'
+    });
+    assertParseIntervals(html, doc.childNodes[3], "comment", {
+      'parseInfo': '<!--world-->'
+    });
+  });
+
   test("parsing of misplaced DOCTYPE", function() {
     var html = '<p>hi</p><!DOCTYPE html>';
     var result = parse(html);
