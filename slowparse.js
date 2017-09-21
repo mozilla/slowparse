@@ -14,8 +14,9 @@ module.exports = (function(){
 
   function CSSParser(stream, domBuilder, warnings) {
     this.stream = stream;
+    // note: we do not actually use the domBuilder during CSS parsing
     this.domBuilder = domBuilder;
-    this.warnings = warnings;
+    this.warnings = warnings || [];
   }
 
   CSSParser.prototype = {
@@ -111,7 +112,7 @@ module.exports = (function(){
     //
     // Any parse errors along the way will result in a `ParseError`
     // being thrown.
-    parse: function() {
+    parse: function(standalone) {
       // We'll use some instance variables to keep track of our parse
       // state:
 
@@ -215,6 +216,10 @@ module.exports = (function(){
       // skip over comments, if there is one at this position
       this.stream.stripCommentBlock();
 
+      if (this.stream.peek() === "{") {
+        throw new ParseError("MISSING_CSS_SELECTOR", this, this.stream.pos-1, this.stream.pos);
+      }
+
       // are we looking at an @block?
       if (this.stream.peek() === "@") {
         this.stream.eatCSSWhile(/[^\{]/);
@@ -283,9 +288,8 @@ module.exports = (function(){
           if (this.stream.substream(2) !== "</") {
             throw new ParseError("HTML_CODE_IN_CSS_BLOCK", this, this.stream.pos-1, this.stream.pos);
           }
-          return;
         }
-        throw new ParseError("MISSING_CSS_SELECTOR", this, this.stream.pos-1, this.stream.pos);
+        return;
       }
 
       // If we get here, we have a selector string.
@@ -1247,7 +1251,7 @@ module.exports = (function(){
   return HTMLParser;
 }());
 
-},{"./CSSParser":1,"./ParseError":6,"./checkMixedContent":9,"./voidHtmlElements":11}],5:[function(require,module,exports){
+},{"./CSSParser":1,"./ParseError":6,"./checkMixedContent":9,"./voidHtmlElements":10}],5:[function(require,module,exports){
   // ### DOM Node Shim
   //
   // This represents a superficial form of a DOM node which contains most of
@@ -1368,7 +1372,7 @@ module.exports = (function(){
   return Node;
 }());
 
-},{"./voidHtmlElements":11}],6:[function(require,module,exports){
+},{"./voidHtmlElements":10}],6:[function(require,module,exports){
 // ### Errors
 //
 // `ParseError` is an internal error class used to indicate a parsing error.
@@ -1995,6 +1999,12 @@ module.exports = {
 };
 
 },{}],10:[function(require,module,exports){
+// A list of void HTML elements
+module.exports = ["area", "base", "br", "col", "command", "embed", "hr",
+                  "img", "input", "keygen", "link", "meta", "param",
+                  "source", "track", "wbr"];
+
+},{}],11:[function(require,module,exports){
 // Slowparse is a token stream parser for HTML and CSS text,
 // recording regions of interest during the parse run and
 // signaling any errors detected accompanied by relevant
@@ -2027,6 +2037,39 @@ module.exports = {
   var CSSParser = require("./CSSParser");
   var HTMLParser = require("./HTMLParser");
   var DOMBuilder = require("./DOMBuilder");
+
+  // An internal function for performing a parse run
+  // for either HTML or CSS content.
+  function performParseRun(parser, domBuilder, errorDetectors, data) {
+    data = data || "";
+
+    var warnings = null,
+        error = null;
+
+    try {
+      var _ = parser.parse();
+      if (_.warnings) {
+        warnings = _.warnings;
+      }
+    } catch (e) {
+      if (e.parseInfo) {
+        error = e.parseInfo;
+      } else
+        throw e;
+    }
+
+    errorDetectors.forEach(function(detector) {
+      if (!error)
+        error = detector(data, domBuilder.fragment.node) || null;
+    });
+
+    return {
+      document: domBuilder.fragment.node,
+      contexts: domBuilder.contexts,
+      warnings: warnings,
+      error: error
+    };
+  }
 
   // ### Exported Symbols
   //
@@ -2068,41 +2111,32 @@ module.exports = {
     //   [error specification]: spec/
     HTML: function(document, html, options) {
       options = options || {};
+
       var stream = new Stream(html),
-          domBuilder,
-          parser,
-          warnings = null,
-          error = null,
-          errorDetectors = options.errorDetectors || [],
-          disallowActiveAttributes = (typeof options.disallowActiveAttributes === "undefined") ? false : options.disallowActiveAttributes;
+          disallowActiveAttributes = (typeof options.disallowActiveAttributes === "undefined") ? false : options.disallowActiveAttributes,
+          domBuilder = new DOMBuilder(disallowActiveAttributes),
+          parser = new HTMLParser(stream, domBuilder),
+          errorDetectors = options.errorDetectors || [];
 
-      domBuilder = new DOMBuilder(disallowActiveAttributes);
-      parser = new HTMLParser(stream, domBuilder);
-
-      try {
-        var _ = parser.parse();
-        if (_.warnings) {
-          warnings = _.warnings;
-        }
-      } catch (e) {
-        if (e.parseInfo) {
-          error = e.parseInfo;
-        } else
-          throw e;
-      }
-
-      errorDetectors.forEach(function(detector) {
-        if (!error)
-          error = detector(html, domBuilder.fragment.node) || null;
-      });
-
-      return {
-        document: domBuilder.fragment.node,
-        contexts: domBuilder.contexts,
-        warnings: warnings,
-        error: error
-      };
+      return performParseRun(parser, domBuilder, errorDetectors, html);
     },
+
+    // `Slowparse.CSS()` is a secondary function for CSS parsing. Given
+    // a string of purse CSS, we return the same object as a call to
+    // `Slowparse.HTML()`, with CSS-specific errors.
+    //
+    //   [error specification]: spec/
+    CSS: function(css, options) {
+      options = options || {};
+
+      var stream = new Stream(css),
+          domBuilder = new DOMBuilder(),
+          parser = new CSSParser(stream, domBuilder),
+          errorDetectors = options.errorDetectors || [];
+
+      return performParseRun(parser, domBuilder, errorDetectors, css);
+    },
+
     // `Slowparse.findError()` just returns any error in the given HTML
     // string, or `null` if the HTML contains no errors.
     findError: function(html, errorDetectors) {
@@ -2126,11 +2160,5 @@ module.exports = {
   }
 }());
 
-},{"./CSSParser":1,"./DOMBuilder":2,"./HTMLParser":4,"./Stream":8}],11:[function(require,module,exports){
-// A list of void HTML elements
-module.exports = ["area", "base", "br", "col", "command", "embed", "hr",
-                  "img", "input", "keygen", "link", "meta", "param",
-                  "source", "track", "wbr"];
-
-},{}]},{},[10])(10)
+},{"./CSSParser":1,"./DOMBuilder":2,"./HTMLParser":4,"./Stream":8}]},{},[11])(11)
 });

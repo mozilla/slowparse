@@ -31,6 +31,39 @@
   var HTMLParser = require("./HTMLParser");
   var DOMBuilder = require("./DOMBuilder");
 
+  // An internal function for performing a parse run
+  // for either HTML or CSS content.
+  function performParseRun(parser, domBuilder, errorDetectors, data) {
+    data = data || "";
+
+    var warnings = null,
+        error = null;
+
+    try {
+      var _ = parser.parse();
+      if (_.warnings) {
+        warnings = _.warnings;
+      }
+    } catch (e) {
+      if (e.parseInfo) {
+        error = e.parseInfo;
+      } else
+        throw e;
+    }
+
+    errorDetectors.forEach(function(detector) {
+      if (!error)
+        error = detector(data, domBuilder.fragment.node) || null;
+    });
+
+    return {
+      document: domBuilder.fragment.node,
+      contexts: domBuilder.contexts,
+      warnings: warnings,
+      error: error
+    };
+  }
+
   // ### Exported Symbols
   //
   // `Slowparse` is the object that holds all exported symbols from
@@ -71,41 +104,32 @@
     //   [error specification]: spec/
     HTML: function(document, html, options) {
       options = options || {};
+
       var stream = new Stream(html),
-          domBuilder,
-          parser,
-          warnings = null,
-          error = null,
-          errorDetectors = options.errorDetectors || [],
-          disallowActiveAttributes = (typeof options.disallowActiveAttributes === "undefined") ? false : options.disallowActiveAttributes;
+          disallowActiveAttributes = (typeof options.disallowActiveAttributes === "undefined") ? false : options.disallowActiveAttributes,
+          domBuilder = new DOMBuilder(disallowActiveAttributes),
+          parser = new HTMLParser(stream, domBuilder),
+          errorDetectors = options.errorDetectors || [];
 
-      domBuilder = new DOMBuilder(disallowActiveAttributes);
-      parser = new HTMLParser(stream, domBuilder);
-
-      try {
-        var _ = parser.parse();
-        if (_.warnings) {
-          warnings = _.warnings;
-        }
-      } catch (e) {
-        if (e.parseInfo) {
-          error = e.parseInfo;
-        } else
-          throw e;
-      }
-
-      errorDetectors.forEach(function(detector) {
-        if (!error)
-          error = detector(html, domBuilder.fragment.node) || null;
-      });
-
-      return {
-        document: domBuilder.fragment.node,
-        contexts: domBuilder.contexts,
-        warnings: warnings,
-        error: error
-      };
+      return performParseRun(parser, domBuilder, errorDetectors, html);
     },
+
+    // `Slowparse.CSS()` is a secondary function for CSS parsing. Given
+    // a string of purse CSS, we return the same object as a call to
+    // `Slowparse.HTML()`, with CSS-specific errors.
+    //
+    //   [error specification]: spec/
+    CSS: function(css, options) {
+      options = options || {};
+
+      var stream = new Stream(css),
+          domBuilder = new DOMBuilder(),
+          parser = new CSSParser(stream, domBuilder),
+          errorDetectors = options.errorDetectors || [];
+
+      return performParseRun(parser, domBuilder, errorDetectors, css);
+    },
+
     // `Slowparse.findError()` just returns any error in the given HTML
     // string, or `null` if the HTML contains no errors.
     findError: function(html, errorDetectors) {

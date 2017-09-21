@@ -1,4 +1,4 @@
-module.exports = function(Slowparse, jsdom) {
+module.exports = function(Slowparse, JSDOM) {
 
   var testcount = 0;
   var failCount = 0;
@@ -138,7 +138,10 @@ module.exports = function(Slowparse, jsdom) {
   // parsed document.
   function parseWithoutErrors(html, options) {
     options = options || {};
-    var result = Slowparse.HTML(jsdom(html), html, options);
+    try {
+    var document = new JSDOM(html).window.document
+    var result = Slowparse.HTML(document, html, options);
+  } catch (e) { console.error(e); }
     ok(result.document, "document is returned");
     equal(result.error, null, "no errors are reported");
     return result.document;
