@@ -28,9 +28,7 @@
   },
   "homepage": "https://github.com/mozilla/slowparse",
   "devDependencies": {
+    "browserify": "^14.4.0",
     "jsdom": "11"
-  },
-  "dependencies": {
-    "browserify": "^14.4.0"
   }
 }
