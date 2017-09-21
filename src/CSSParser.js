@@ -13,8 +13,9 @@ module.exports = (function(){
 
   function CSSParser(stream, domBuilder, warnings) {
     this.stream = stream;
+    // note: we do not actually use the domBuilder during CSS parsing
     this.domBuilder = domBuilder;
-    this.warnings = warnings;
+    this.warnings = warnings || [];
   }
 
   CSSParser.prototype = {
@@ -110,7 +111,7 @@ module.exports = (function(){
     //
     // Any parse errors along the way will result in a `ParseError`
     // being thrown.
-    parse: function() {
+    parse: function(standalone) {
       // We'll use some instance variables to keep track of our parse
       // state:
 
@@ -214,6 +215,10 @@ module.exports = (function(){
       // skip over comments, if there is one at this position
       this.stream.stripCommentBlock();
 
+      if (this.stream.peek() === "{") {
+        throw new ParseError("MISSING_CSS_SELECTOR", this, this.stream.pos-1, this.stream.pos);
+      }
+
       // are we looking at an @block?
       if (this.stream.peek() === "@") {
         this.stream.eatCSSWhile(/[^\{]/);
@@ -282,9 +287,8 @@ module.exports = (function(){
           if (this.stream.substream(2) !== "</") {
             throw new ParseError("HTML_CODE_IN_CSS_BLOCK", this, this.stream.pos-1, this.stream.pos);
           }
-          return;
         }
-        throw new ParseError("MISSING_CSS_SELECTOR", this, this.stream.pos-1, this.stream.pos);
+        return;
       }
 
       // If we get here, we have a selector string.

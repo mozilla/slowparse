@@ -14,6 +14,7 @@ module.exports = function(Slowparse, window, document, validators) {
   var testStyleSheet = validators.testStyleSheet;
 
   var parse = function(html) { return Slowparse.HTML(document, html); };
+  var parseCSS = function(css) { return Slowparse.CSS(css); };
 
   test("Stream.match()", function() {
     var stream = new Slowparse.Stream("blArgle");
@@ -303,6 +304,14 @@ module.exports = function(Slowparse, window, document, validators) {
 
       equal(documentFragmentHTML(doc), canonicalHTML,
             "Document fragment is correct.");
+    });
+  });
+
+  test("parsing empty stylesheet", function(){
+    testStyleSheet("testing empty stylesheet",
+                   "",
+                   function(html, css, styleContents) {
+        equal(styleContents.parseInfo.start, styleContents.parseInfo.end);
     });
   });
 
@@ -798,6 +807,22 @@ module.exports = function(Slowparse, window, document, validators) {
       cursor: 69
     });
   });
+
+
+  // specifically CSS testing
+
+  test("parsing empty CSS document", function() {
+    var css = '';
+    var result = parseCSS(css);
+    equal(result.error, null);
+  });
+
+  test("comment-only CSS document", function() {
+    var css = '/* this is \n a comment */';
+    var result = parseCSS(css);
+    equal(result.error, null);
+  });
+
 
   return validators.getFailCount();
 };
