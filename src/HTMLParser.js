@@ -258,7 +258,7 @@ module.exports = (function(){
       // At the end, it's possible we're left with an open tag, so
       // we test for that.
       if (this.domBuilder.currentNode != this.domBuilder.fragment.node)
-        throw new ParseError("UNCLOSED_TAG", this);
+        throw new ParseError("UNCLOSED_TAG", this, token);
 
       return {
         warnings: (this.warnings.length > 0 ? this.warnings : false)
@@ -395,7 +395,7 @@ module.exports = (function(){
         }
         this.stream.next();
       }
-      throw new ParseError("UNCLOSED_TAG", this);
+      throw new ParseError("UNCLOSED_TAG", this, token);
     },
     // This helper function checks if the current tag contains an attribute
     containsAttribute: function (stream) {
@@ -408,9 +408,9 @@ module.exports = (function(){
       this.stream.eatSpace();
       if (this.stream.next() != '>') {
         if(this.containsAttribute(this.stream)) {
-          throw new ParseError("ATTRIBUTE_IN_CLOSING_TAG", this);
+          throw new ParseError("ATTRIBUTE_IN_CLOSING_TAG", this, token);
         } else {
-          throw new ParseError("UNTERMINATED_CLOSE_TAG", this);
+          throw new ParseError("UNTERMINATED_CLOSE_TAG", this, token);
         }
       }
       var end = this.stream.makeToken().interval.end;
@@ -443,7 +443,7 @@ module.exports = (function(){
           if (selfClosing) {
             if (!this.parsingSVG && !this._knownVoidHTMLElement(tagName))
               throw new ParseError("SELF_CLOSING_NON_VOID_ELEMENT", this,
-                                   tagName);
+                                   tagName, token);
           } else
             this.stream.next();
           var end = this.stream.makeToken().interval.end;
@@ -517,10 +517,10 @@ module.exports = (function(){
               var token = this.stream.makeToken();
               throw new ParseError("UNBOUND_ATTRIBUTE_VALUE", this, token);
             }
-            throw new ParseError("UNTERMINATED_OPEN_TAG", this);
+            throw new ParseError("UNTERMINATED_OPEN_TAG", this, token);
           }
           attrToken.interval.start = startMark;
-          throw new ParseError("INVALID_ATTR_NAME", this, attrToken);
+          throw new ParseError("INVALID_ATTR_NAME", this, attrToken, token);
         }
       }
     },
@@ -539,12 +539,12 @@ module.exports = (function(){
         if(nameTok.value.indexOf(":") !== -1) {
           var parts = nameTok.value.split(":");
           if(parts.length > 2) {
-            throw new ParseError("MULTIPLE_ATTR_NAMESPACES", this, nameTok);
+            throw new ParseError("MULTIPLE_ATTR_NAMESPACES", this, nameTok, token);
           }
           var nameSpace = parts[0],
               attributeName = parts[1];
           if(!this._supportedAttributeNameSpace(nameSpace)) {
-            throw new ParseError("UNSUPPORTED_ATTR_NAMESPACE", this, nameTok);
+            throw new ParseError("UNSUPPORTED_ATTR_NAMESPACE", this, nameTok, token);
           }
         }
 
@@ -555,7 +555,7 @@ module.exports = (function(){
         this.stream.makeToken();
         var quoteType = this.stream.next();
         if (quoteType !== '"' && quoteType !== "'") {
-          throw new ParseError("UNQUOTED_ATTR_VALUE", this);
+          throw new ParseError("UNQUOTED_ATTR_VALUE", this, token);
         }
         if (quoteType === '"') {
           this.stream.eatWhile(/[^"]/);
@@ -563,14 +563,14 @@ module.exports = (function(){
           this.stream.eatWhile(/[^']/);
         }
         if (this.stream.next() !== quoteType) {
-          throw new ParseError("UNTERMINATED_ATTR_VALUE", this, nameTok);
+          throw new ParseError("UNTERMINATED_ATTR_VALUE", this, nameTok, token);
         }
         var valueTok = this.stream.makeToken();
 
         //Add a new validator to check if there is a http link in a https page
         if (checkMixedContent && valueTok.value.match(/http:/) && isActiveContent(tagName, nameTok.value)) {
           this.warnings.push(
-            new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok)
+            new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok, token)
           );
         }
 

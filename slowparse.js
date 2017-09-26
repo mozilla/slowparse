@@ -916,7 +916,7 @@ module.exports = (function(){
       // At the end, it's possible we're left with an open tag, so
       // we test for that.
       if (this.domBuilder.currentNode != this.domBuilder.fragment.node)
-        throw new ParseError("UNCLOSED_TAG", this);
+        throw new ParseError("UNCLOSED_TAG", this, token);
 
       return {
         warnings: (this.warnings.length > 0 ? this.warnings : false)
@@ -1053,7 +1053,7 @@ module.exports = (function(){
         }
         this.stream.next();
       }
-      throw new ParseError("UNCLOSED_TAG", this);
+      throw new ParseError("UNCLOSED_TAG", this, token);
     },
     // This helper function checks if the current tag contains an attribute
     containsAttribute: function (stream) {
@@ -1066,9 +1066,9 @@ module.exports = (function(){
       this.stream.eatSpace();
       if (this.stream.next() != '>') {
         if(this.containsAttribute(this.stream)) {
-          throw new ParseError("ATTRIBUTE_IN_CLOSING_TAG", this);
+          throw new ParseError("ATTRIBUTE_IN_CLOSING_TAG", this, token);
         } else {
-          throw new ParseError("UNTERMINATED_CLOSE_TAG", this);
+          throw new ParseError("UNTERMINATED_CLOSE_TAG", this, token);
         }
       }
       var end = this.stream.makeToken().interval.end;
@@ -1101,7 +1101,7 @@ module.exports = (function(){
           if (selfClosing) {
             if (!this.parsingSVG && !this._knownVoidHTMLElement(tagName))
               throw new ParseError("SELF_CLOSING_NON_VOID_ELEMENT", this,
-                                   tagName);
+                                   tagName, token);
           } else
             this.stream.next();
           var end = this.stream.makeToken().interval.end;
@@ -1175,10 +1175,10 @@ module.exports = (function(){
               var token = this.stream.makeToken();
               throw new ParseError("UNBOUND_ATTRIBUTE_VALUE", this, token);
             }
-            throw new ParseError("UNTERMINATED_OPEN_TAG", this);
+            throw new ParseError("UNTERMINATED_OPEN_TAG", this, token);
           }
           attrToken.interval.start = startMark;
-          throw new ParseError("INVALID_ATTR_NAME", this, attrToken);
+          throw new ParseError("INVALID_ATTR_NAME", this, attrToken, token);
         }
       }
     },
@@ -1197,12 +1197,12 @@ module.exports = (function(){
         if(nameTok.value.indexOf(":") !== -1) {
           var parts = nameTok.value.split(":");
           if(parts.length > 2) {
-            throw new ParseError("MULTIPLE_ATTR_NAMESPACES", this, nameTok);
+            throw new ParseError("MULTIPLE_ATTR_NAMESPACES", this, nameTok, token);
           }
           var nameSpace = parts[0],
               attributeName = parts[1];
           if(!this._supportedAttributeNameSpace(nameSpace)) {
-            throw new ParseError("UNSUPPORTED_ATTR_NAMESPACE", this, nameTok);
+            throw new ParseError("UNSUPPORTED_ATTR_NAMESPACE", this, nameTok, token);
           }
         }
 
@@ -1213,7 +1213,7 @@ module.exports = (function(){
         this.stream.makeToken();
         var quoteType = this.stream.next();
         if (quoteType !== '"' && quoteType !== "'") {
-          throw new ParseError("UNQUOTED_ATTR_VALUE", this);
+          throw new ParseError("UNQUOTED_ATTR_VALUE", this, token);
         }
         if (quoteType === '"') {
           this.stream.eatWhile(/[^"]/);
@@ -1221,14 +1221,14 @@ module.exports = (function(){
           this.stream.eatWhile(/[^']/);
         }
         if (this.stream.next() !== quoteType) {
-          throw new ParseError("UNTERMINATED_ATTR_VALUE", this, nameTok);
+          throw new ParseError("UNTERMINATED_ATTR_VALUE", this, nameTok, token);
         }
         var valueTok = this.stream.makeToken();
 
         //Add a new validator to check if there is a http link in a https page
         if (checkMixedContent && valueTok.value.match(/http:/) && isActiveContent(tagName, nameTok.value)) {
           this.warnings.push(
-            new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok)
+            new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok, token)
           );
         }
 
@@ -1251,7 +1251,7 @@ module.exports = (function(){
   return HTMLParser;
 }());
 
-},{"./CSSParser":1,"./ParseError":6,"./checkMixedContent":9,"./voidHtmlElements":10}],5:[function(require,module,exports){
+},{"./CSSParser":1,"./ParseError":6,"./checkMixedContent":9,"./voidHtmlElements":11}],5:[function(require,module,exports){
   // ### DOM Node Shim
   //
   // This represents a superficial form of a DOM node which contains most of
@@ -1372,7 +1372,7 @@ module.exports = (function(){
   return Node;
 }());
 
-},{"./voidHtmlElements":10}],6:[function(require,module,exports){
+},{"./voidHtmlElements":11}],6:[function(require,module,exports){
 // ### Errors
 //
 // `ParseError` is an internal error class used to indicate a parsing error.
@@ -1392,11 +1392,14 @@ module.exports = (function() {
 
   function ParseError(type) {
     this.name = "ParseError";
+
+
     if (!(type in ParseErrorBuilders))
       throw new Error("Unknown ParseError type: " + type);
     var args = [];
     for (var i = 1; i < arguments.length; i++)
       args.push(arguments[i]);
+
     var parseInfo = ParseErrorBuilders[type].apply(ParseErrorBuilders, args);
 
     /* This may seem a weird way of setting an attribute, but we want
@@ -1405,6 +1408,12 @@ module.exports = (function() {
     parseInfo = ParseErrorBuilders._combine({
       type: type
     }, parseInfo);
+
+
+    console.log("parseInfo");
+    console.log(parseInfo);
+    console.log(arguments);
+
     this.message = type;
     this.parseInfo = parseInfo;
   }
@@ -1440,14 +1449,15 @@ module.exports = (function() {
       return obj;
     },
     // These are HTML errors.
-    UNCLOSED_TAG: function(parser) {
+    UNCLOSED_TAG: function(parser, token) {
       var currentNode = parser.domBuilder.currentNode,
           openTag = this._combine({
             name: currentNode.nodeName.toLowerCase()
           }, currentNode.parseInfo.openTag);
       return {
         openTag: openTag,
-        cursor: openTag.start
+        cursor: openTag.start,
+        token : token
       };
     },
     INVALID_TAG_NAME: function(tagName, token) {
@@ -1456,7 +1466,8 @@ module.exports = (function() {
           }, token.interval);
       return {
         openTag: openTag,
-        cursor: openTag.start
+        cursor: openTag.start,
+        token : token
       };
     },
     UNEXPECTED_CLOSE_TAG: function(parser, closeTagName, token) {
@@ -1465,7 +1476,8 @@ module.exports = (function() {
           }, token.interval);
       return {
         closeTag: closeTag,
-        cursor: closeTag.start
+        cursor: closeTag.start,
+        token : token
       };
     },
     MISMATCHED_CLOSE_TAG: function(parser, openTagName, closeTagName, token) {
@@ -1476,12 +1488,13 @@ module.exports = (function() {
             name: closeTagName
           }, token.interval);
       return {
+        token: token,
         openTag: openTag,
         closeTag: closeTag,
         cursor: closeTag.start
       };
     },
-    ATTRIBUTE_IN_CLOSING_TAG: function(parser) {
+    ATTRIBUTE_IN_CLOSING_TAG: function(parser, token) {
       var currentNode = parser.domBuilder.currentNode;
       var end = parser.stream.pos;
       if (!parser.stream.end()) {
@@ -1494,7 +1507,8 @@ module.exports = (function() {
       };
       return {
         closeTag: closeTag,
-        cursor: closeTag.start
+        cursor: closeTag.start,
+        token : token
       };
     },
     CLOSE_TAG_FOR_VOID_ELEMENT: function(parser, closeTagName, token) {
@@ -1503,17 +1517,19 @@ module.exports = (function() {
           }, token.interval);
       return {
         closeTag: closeTag,
-        cursor: closeTag.start
+        cursor: closeTag.start,
+        token : token
       };
     },
     UNTERMINATED_COMMENT: function(token) {
       var commentStart = token.interval.start;
       return {
         start: commentStart,
-        cursor: commentStart
+        cursor: commentStart,
+        token : token
       };
     },
-    UNTERMINATED_ATTR_VALUE: function(parser, nameTok) {
+    UNTERMINATED_ATTR_VALUE: function(parser, nameTok, token) {
       var currentNode = parser.domBuilder.currentNode,
           openTag = this._combine({
             name: currentNode.nodeName.toLowerCase()
@@ -1532,20 +1548,22 @@ module.exports = (function() {
       return {
         openTag: openTag,
         attribute: attribute,
-        cursor: attribute.value.start
+        cursor: attribute.value.start,
+        token : token
       };
     },
-    UNQUOTED_ATTR_VALUE: function(parser) {
+    UNQUOTED_ATTR_VALUE: function(parser, token) {
       var pos = parser.stream.pos;
       if (!parser.stream.end()) {
         pos = parser.stream.makeToken().interval.start;
       }
       return {
         start: pos,
-        cursor: pos
+        cursor: pos,
+        token : token
       };
     },
-    INVALID_ATTR_NAME: function(parser, attrToken) {
+    INVALID_ATTR_NAME: function(parser, attrToken, token) {
       return {
         start: attrToken.interval.start,
         end: attrToken.interval.end,
@@ -1566,10 +1584,11 @@ module.exports = (function() {
             value: attrToken.value
           }
         },
-        cursor: attrToken.interval.start
+        cursor: attrToken.interval.start,
+        token : token
       };
     },
-    UNSUPPORTED_ATTR_NAMESPACE: function(parser, attrToken) {
+    UNSUPPORTED_ATTR_NAMESPACE: function(parser, attrToken, token) {
       return {
         start: attrToken.interval.start,
         end: attrToken.interval.end,
@@ -1578,17 +1597,19 @@ module.exports = (function() {
             value: attrToken.value
           }
         },
-        cursor: attrToken.interval.start
+        cursor: attrToken.interval.start,
+        token : token
       };
     },
-    UNBOUND_ATTRIBUTE_VALUE: function(parser, valueToken) {
+    UNBOUND_ATTRIBUTE_VALUE: function(parser, valueToken, token) {
       return {
         value: valueToken.value,
         interval: valueToken.interval,
-        cursor: valueToken.interval.start
+        cursor: valueToken.interval.start,
+        token : token
       };
     },
-    UNTERMINATED_OPEN_TAG: function(parser) {
+    UNTERMINATED_OPEN_TAG: function(parser, token) {
       var currentNode = parser.domBuilder.currentNode,
           openTag = {
             start: currentNode.parseInfo.openTag.start,
@@ -1597,20 +1618,22 @@ module.exports = (function() {
           };
       return {
         openTag: openTag,
-        cursor: openTag.start
+        cursor: openTag.start,
+        token : token
       };
     },
-    SELF_CLOSING_NON_VOID_ELEMENT: function(parser, tagName) {
+    SELF_CLOSING_NON_VOID_ELEMENT: function(parser, tagName, token) {
       var start = parser.domBuilder.currentNode.parseInfo.openTag.start,
           end = parser.stream.makeToken().interval.end;
       return {
         name: tagName,
         start: start,
         end: end,
-        cursor: start
+        cursor: start,
+        token : token
       };
     },
-    UNTERMINATED_CLOSE_TAG: function(parser) {
+    UNTERMINATED_CLOSE_TAG: function(parser, token) {
       var currentNode = parser.domBuilder.currentNode;
       var end = parser.stream.pos;
       if (!parser.stream.end()) {
@@ -1623,11 +1646,12 @@ module.exports = (function() {
           };
       return {
         closeTag: closeTag,
-        cursor: closeTag.start
+        cursor: closeTag.start,
+        token : token
       };
     },
     //Special error type for a http link does not work in a https page
-    HTTP_LINK_FROM_HTTPS_PAGE: function(parser, nameTok, valueTok) {
+    HTTP_LINK_FROM_HTTPS_PAGE: function(parser, nameTok, valueTok, token) {
       var currentNode = parser.domBuilder.currentNode,
           openTag = this._combine({
             name: currentNode.nodeName.toLowerCase()
@@ -1646,100 +1670,110 @@ module.exports = (function() {
       return {
         openTag: openTag,
         attribute: attribute,
-        cursor: attribute.value.start
+        cursor: attribute.value.start,
+        token : token
       };
     },
     // These are CSS errors.
-    UNKOWN_CSS_KEYWORD: function(parser, start, end, value) {
+    UNKOWN_CSS_KEYWORD: function(parser, start, end, value, token) {
       return {
         cssKeyword: {
           start: start,
           end: end,
           value: value
         },
-        cursor: start
+        cursor: start,
+        token : token
       };
     },
-    MISSING_CSS_SELECTOR: function(parser, start, end) {
+    MISSING_CSS_SELECTOR: function(parser, start, end, token) {
       return {
         cssBlock: {
           start: start,
           end: end
         },
-        cursor: start
+        cursor: start,
+        token : token
       };
     },
-    UNFINISHED_CSS_SELECTOR: function(parser, start, end, selector) {
+    UNFINISHED_CSS_SELECTOR: function(parser, start, end, selector, token) {
       return {
         cssSelector: {
           start: start,
           end: end,
           selector: selector
         },
-        cursor: start
+        cursor: start,
+        token : token
       };
     },
-    MISSING_CSS_BLOCK_OPENER: function(parser, start, end, selector) {
+    MISSING_CSS_BLOCK_OPENER: function(parser, start, end, selector, token) {
       return {
         cssSelector: {
           start: start,
           end: end,
           selector: selector
         },
-        cursor: start
+        cursor: start,
+        token : token
       };
     },
-    INVALID_CSS_PROPERTY_NAME: function(parser, start, end, property) {
+    INVALID_CSS_PROPERTY_NAME: function(parser, start, end, property, token) {
       return {
         cssProperty: {
           start: start,
           end: end,
           property: property
         },
-        cursor: start
+        cursor: start,
+        token : token
       };
     },
-    MISSING_CSS_PROPERTY: function(parser, start, end, selector) {
+    MISSING_CSS_PROPERTY: function(parser, start, end, selector, token) {
       return {
         cssSelector: {
           start: start,
           end: end,
           selector: selector
         },
-        cursor: start
+        cursor: start,
+        token : token
       };
     },
-    UNFINISHED_CSS_PROPERTY: function(parser, start, end, property) {
+    UNFINISHED_CSS_PROPERTY: function(parser, start, end, property, token) {
       return {
         cssProperty: {
           start: start,
           end: end,
           property: property
         },
-        cursor: start
+        cursor: start,
+        token : token
       };
     },
-    MISSING_CSS_VALUE: function(parser, start, end, property) {
+    MISSING_CSS_VALUE: function(parser, start, end, property, token) {
       return {
         cssProperty: {
           start: start,
           end: end,
           property: property
         },
-        cursor: start
+        cursor: start,
+        token : token
       };
     },
-    UNFINISHED_CSS_VALUE: function(parser, start, end, value) {
+    UNFINISHED_CSS_VALUE: function(parser, start, end, value, token) {
       return {
         cssValue: {
           start: start,
           end: end,
           value: value
         },
-        cursor: start
+        cursor: start,
+        token : token
       };
     },
-    CSS_MIXED_ACTIVECONTENT: function(parser, property, propertyStart, value, valueStart, valueEnd) {
+    CSS_MIXED_ACTIVECONTENT: function(parser, property, propertyStart, value, valueStart, valueEnd, token) {
       var cssProperty = {
             property: property,
             start: propertyStart,
@@ -1753,46 +1787,50 @@ module.exports = (function() {
       return {
         cssProperty: cssProperty,
         cssValue: cssValue,
-        cursor: cssValue.start
+        cursor: cssValue.start,
+        token : token
       };
     },
-    MISSING_CSS_BLOCK_CLOSER: function(parser, start, end, value) {
+    MISSING_CSS_BLOCK_CLOSER: function(parser, start, end, value, token) {
       return {
         cssValue: {
           start: start,
           end: end,
           value: value
         },
-        cursor: start
+        cursor: start,
+        token : token
       };
     },
-    UNCAUGHT_CSS_PARSE_ERROR: function(parser, start, end, msg) {
+    UNCAUGHT_CSS_PARSE_ERROR: function(parser, start, end, msg, token) {
       return {
         error: {
           start: start,
           end: end,
           msg: msg
         },
-        cursor: start
+        cursor: start,
+        token : token
       };
     },
-    UNTERMINATED_CSS_COMMENT: function(start) {
+    UNTERMINATED_CSS_COMMENT: function(start, token) {
       return {
         start: start,
-        cursor: start
+        cursor: start,
+        token : token
       };
     },
-    HTML_CODE_IN_CSS_BLOCK: function(parser, start, end) {
+    HTML_CODE_IN_CSS_BLOCK: function(parser, start, end, token) {
       return {
         html: {
           start: start,
           end: end
         },
-        cursor: start
+        cursor: start,
+        token : token
       };
     }
   };
-
   return ParseErrorBuilders;
 
 }());
@@ -1999,12 +2037,6 @@ module.exports = {
 };
 
 },{}],10:[function(require,module,exports){
-// A list of void HTML elements
-module.exports = ["area", "base", "br", "col", "command", "embed", "hr",
-                  "img", "input", "keygen", "link", "meta", "param",
-                  "source", "track", "wbr"];
-
-},{}],11:[function(require,module,exports){
 // Slowparse is a token stream parser for HTML and CSS text,
 // recording regions of interest during the parse run and
 // signaling any errors detected accompanied by relevant
@@ -2160,5 +2192,11 @@ module.exports = ["area", "base", "br", "col", "command", "embed", "hr",
   }
 }());
 
-},{"./CSSParser":1,"./DOMBuilder":2,"./HTMLParser":4,"./Stream":8}]},{},[11])(11)
+},{"./CSSParser":1,"./DOMBuilder":2,"./HTMLParser":4,"./Stream":8}],11:[function(require,module,exports){
+// A list of void HTML elements
+module.exports = ["area", "base", "br", "col", "command", "embed", "hr",
+                  "img", "input", "keygen", "link", "meta", "param",
+                  "source", "track", "wbr"];
+
+},{}]},{},[10])(10)
 });
