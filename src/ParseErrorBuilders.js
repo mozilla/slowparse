@@ -54,6 +54,20 @@ module.exports = (function() {
         token : token
       };
     },
+    ORPHAN_CLOSE_TAG: function(parser, openTagName, closeTagName, token) {
+      var openTag = this._combine({
+            name: openTagName
+          }, parser.domBuilder.currentNode.parseInfo.openTag),
+          closeTag = this._combine({
+            name: closeTagName
+          }, token.interval);
+      return {
+        token: token,
+        openTag: openTag,
+        closeTag: closeTag,
+        cursor: closeTag.start
+      };
+    },
     MISMATCHED_CLOSE_TAG: function(parser, openTagName, closeTagName, token) {
       var openTag = this._combine({
             name: openTagName
