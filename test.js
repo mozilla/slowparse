@@ -10,7 +10,12 @@ var Slowparse = require("./slowparse.js"),
     validators = require("./test/node/qunit-shim.js")(Slowparse, JSDOM);
 
 console.log("Testing Slowparse library:");
-var failureCount = require("./test/test-slowparse.js")(Slowparse, window, document, validators);
-if (failureCount > 0) { console.log(failureCount + " tests failed."); }
+
+var testRunner = require("./test/test-slowparse.js");
+var failureCount = testRunner(Slowparse, window, document, validators);
+
+if (failureCount > 0) {
+	console.log(`${failureCount} test${failureCount>1 ? 's' : ''} failed.`);
+}
 
 process.exit(failureCount);

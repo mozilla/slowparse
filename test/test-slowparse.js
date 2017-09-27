@@ -809,6 +809,29 @@ module.exports = function(Slowparse, window, document, validators) {
   });
 
 
+  test("correctly flag the opening tag for an auto-closed closing tag", function () {
+    var html = '<body><p><h1><a href="">test</a></h1></p></body>';
+    var result = parse(html);
+    equal(result.error, {
+      type: 'MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING',
+      openTag: { name: 'p', start: 6, end: 9 },
+      closeTag: { name: 'p', start: 37, end: 40 },
+      cursor: 37
+    });
+  });
+
+  test("correctly flag the opening tag in the source for a block closer with auto-closed flow element", function () {
+    var html = '<body><p><h1>lol</h1></h2></p></body>';
+    var result = parse(html);
+    equal(result.error, {
+      type: 'MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING',
+      openTag: { name: 'p', start: 6, end: 9 },
+      closeTag: { name: 'h2', start: 21, end: 25 },
+      cursor: 21
+    });
+  });
+
+
   // specifically CSS testing
 
   test("parsing empty CSS document", function() {

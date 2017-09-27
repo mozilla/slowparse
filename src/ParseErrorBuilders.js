@@ -51,6 +51,21 @@ module.exports = (function() {
         cursor: closeTag.start
       };
     },
+    MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING: function(parser, closeTagName, token) {
+      var warnings = parser.domBuilder.currentNode.closeWarnings,
+          tag = warnings[0],
+          openTag = this._combine({
+            name: tag.tagName
+          }, tag.parseInfo.openTag),
+          closeTag = this._combine({
+            name: closeTagName
+          }, token.interval);
+      return {
+        openTag: openTag,
+        closeTag: closeTag,
+        cursor: closeTag.start
+      };
+    },
     MISMATCHED_CLOSE_TAG: function(parser, openTagName, closeTagName, token) {
       var openTag = this._combine({
             name: openTagName
