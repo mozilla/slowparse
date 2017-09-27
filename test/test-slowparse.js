@@ -831,6 +831,15 @@ module.exports = function(Slowparse, window, document, validators) {
     });
   });
 
+  test("testing </ and auto-closed tags", function () {
+    var html = '<body><div><p><h1>lol</h1></</div></body>';
+    var result = parse(html);
+    equal(result.error, {
+      type: 'MISSING_CLOSING_TAG_NAME',
+      openTag: { name: 'p', start: 11, end: 14 },
+      cursor: 26
+    });
+  });
 
   // specifically CSS testing
 
