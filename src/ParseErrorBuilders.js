@@ -68,6 +68,18 @@ module.exports = (function() {
         cursor: closeTag.start
       };
     },
+    MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING: function(parser, closeTagName, token) {
+      var warnings = parser.domBuilder.currentNode.closeWarnings,
+          tag = warnings[0],
+          closeTag = this._combine({
+            name: closeTagName
+          }, token.interval);
+      return {
+        openTag: tag.parseInfo.openTag,
+        closeTag: closeTag,
+        cursor: closeTag.start
+      };
+    },
     MISMATCHED_CLOSE_TAG: function(parser, openTagName, closeTagName, token) {
       var openTag = this._combine({
             name: openTagName

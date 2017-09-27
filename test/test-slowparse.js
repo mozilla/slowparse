@@ -809,6 +809,18 @@ module.exports = function(Slowparse, window, document, validators) {
   });
 
 
+  test("correctly flag the opening tag for a missing closing tag", function () {
+    var html = '<body><p><h1><a href="">test</a></h1></p></body>';
+    var result = parse(html);
+    equal(result.error, {
+      type: 'MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING',
+      openTag: { start: 6, end: 9 },
+      closeTag: { name: 'p', start: 37, end: 40 },
+      cursor: 37
+    });
+  });
+
+
   // specifically CSS testing
 
   test("parsing empty CSS document", function() {
