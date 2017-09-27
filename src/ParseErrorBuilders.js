@@ -44,6 +44,23 @@ module.exports = (function() {
         token : token
       };
     },
+    MISSING_CLOSING_TAG_NAME: function(token, openTagName, autocloseWarnings) {
+      var openTag = this._combine({
+            name: openTagName
+          }, token.interval);
+
+      if (autocloseWarnings) {
+        var tag = autocloseWarnings[0];
+        openTag = this._combine({
+            name: tag.tagName
+          }, tag.parseInfo.openTag);
+      }
+
+      return {
+        openTag: openTag,
+        cursor: token.interval.start
+      };
+    },
     UNEXPECTED_CLOSE_TAG: function(parser, closeTagName, token) {
       var closeTag = this._combine({
             name: closeTagName

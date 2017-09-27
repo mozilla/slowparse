@@ -973,6 +973,10 @@ module.exports = (function(){
         };
         var openTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
         if (closeTagName != openTagName) {
+          // Are we dealing with a rogue </ here?
+          if (closeTagName === "") {
+            throw new ParseError("MISSING_CLOSING_TAG_NAME", token, openTagName, this.domBuilder.currentNode.closeWarnings);
+          }
 
 
           console.log("MISMATCHED_CLOSE_TAG");
@@ -990,10 +994,15 @@ module.exports = (function(){
         }
 
 
+
+          // Are we dealing with a tag that is closed in the source,
+          // even though based on DOM parsing it already got closed?
+
           if (this.domBuilder.currentNode.closeWarnings) {
             throw new ParseError("MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING", this, closeTagName, token);
           }
 
+          // This is just a regular old mismatched closing tag.
           throw new ParseError("MISMATCHED_CLOSE_TAG", this, openTagName, closeTagName, token);
         }
 
@@ -1547,6 +1556,23 @@ module.exports = (function() {
         openTag: openTag,
         cursor: openTag.start,
         token : token
+      };
+    },
+    MISSING_CLOSING_TAG_NAME: function(token, openTagName, autocloseWarnings) {
+      var openTag = this._combine({
+            name: openTagName
+          }, token.interval);
+
+      if (autocloseWarnings) {
+        var tag = autocloseWarnings[0];
+        openTag = this._combine({
+            name: tag.tagName
+          }, tag.parseInfo.openTag);
+      }
+
+      return {
+        openTag: openTag,
+        cursor: token.interval.start
       };
     },
     UNEXPECTED_CLOSE_TAG: function(parser, closeTagName, token) {
