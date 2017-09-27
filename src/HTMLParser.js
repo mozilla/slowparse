@@ -315,16 +315,22 @@ module.exports = (function(){
         };
         var openTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
         if (closeTagName != openTagName) {
+
+
+          // TODO - Temporarily commenting out Pomax's new error
+
           // Are we dealing with a rogue </ here?
-          if (closeTagName === "") {
-            throw new ParseError("MISSING_CLOSING_TAG_NAME", token, openTagName, this.domBuilder.currentNode.closeWarnings);
-          }
+          // if (closeTagName === "") {
+          //   throw new ParseError("MISSING_CLOSING_TAG_NAME", token, openTagName, this.domBuilder.currentNode.closeWarnings);
+          // }
 
           // Are we dealing with a tag that is closed in the source,
           // even though based on DOM parsing it already got closed?
-          if (this.domBuilder.currentNode.closeWarnings) {
-            throw new ParseError("MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING", this, closeTagName, token);
-          }
+          // if (this.domBuilder.currentNode.closeWarnings) {
+          //   throw new ParseError("MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING", this, closeTagName, token);
+          // }
+
+          // TODO - End of temporary commenting out
 
           // Check how similar the tags are in spelling
           // if they are similar, there's probably an closed tag
