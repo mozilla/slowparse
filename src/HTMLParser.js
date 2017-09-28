@@ -444,12 +444,14 @@ module.exports = (function(){
     // the stream to be right after the end of the closing tag's tag
     // name.
     _parseEndCloseTag: function() {
+      console.log("_parseEndCloseTag");
+      console.log(this.stream);
       this.stream.eatSpace();
       if (this.stream.next() != '>') {
         if(this.containsAttribute(this.stream)) {
-          throw new ParseError("ATTRIBUTE_IN_CLOSING_TAG", this, token);
+          throw new ParseError("ATTRIBUTE_IN_CLOSING_TAG", this);
         } else {
-          throw new ParseError("UNTERMINATED_CLOSE_TAG", this, token);
+          throw new ParseError("UNTERMINATED_CLOSE_TAG", this);
         }
       }
       var end = this.stream.makeToken().interval.end;
@@ -559,7 +561,7 @@ module.exports = (function(){
             throw new ParseError("UNTERMINATED_OPEN_TAG", this, token);
           }
           attrToken.interval.start = startMark;
-          throw new ParseError("INVALID_ATTR_NAME", this, attrToken, token);
+          throw new ParseError("INVALID_ATTR_NAME", this, attrToken);
         }
       }
     },

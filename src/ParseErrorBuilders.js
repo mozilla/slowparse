@@ -111,9 +111,14 @@ module.exports = (function() {
         cursor: closeTag.start
       };
     },
-    ATTRIBUTE_IN_CLOSING_TAG: function(parser, token) {
+    ATTRIBUTE_IN_CLOSING_TAG: function(parser) {
+      console.log("ATTRIBUTE_IN_CLOSING_TAG");
+      console.log(parser);
+      console.log(parser.domBuilder.currentNode);
+
       var currentNode = parser.domBuilder.currentNode;
       var end = parser.stream.pos;
+
       if (!parser.stream.end()) {
         end = parser.stream.makeToken().interval.start;
       }
@@ -125,17 +130,21 @@ module.exports = (function() {
       return {
         closeTag: closeTag,
         cursor: closeTag.start,
-        token : token
+        highlight : {
+          start : closeTag.start,
+          end : closeTag.end
+        }
       };
     },
     CLOSE_TAG_FOR_VOID_ELEMENT: function(parser, closeTagName, token) {
+
       var closeTag = this._combine({
             name: closeTagName
           }, token.interval);
       return {
         closeTag: closeTag,
         cursor: closeTag.start,
-        token : token
+        highlight : token.interval
       };
     },
     UNTERMINATED_COMMENT: function(token) {
@@ -180,10 +189,14 @@ module.exports = (function() {
         token : token
       };
     },
-    INVALID_ATTR_NAME: function(parser, attrToken, token) {
+    INVALID_ATTR_NAME: function(parser, attrToken) {
       return {
         start: attrToken.interval.start,
         end: attrToken.interval.end,
+        highlight : {
+          start : attrToken.interval.start,
+          end : attrToken.interval.end
+        },
         attribute: {
           name: {
             value: attrToken.value
