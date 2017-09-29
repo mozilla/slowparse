@@ -52,6 +52,10 @@ module.exports = function(Slowparse, window, document, validators) {
         "name": "",
         "start": 9
       },
+      "highlight": {
+         "start": 9,
+         "end": 10
+       },
       cursor: 9,
       "type": "INVALID_TAG_NAME"
     });
@@ -86,6 +90,10 @@ module.exports = function(Slowparse, window, document, validators) {
       type: 'INVALID_ATTR_NAME',
       start: 3,
       end: 8,
+      highlight : {
+        start: 3,
+        end : 8,
+      },
       attribute: { name: { value: "+" }},
       cursor: 3
     };
@@ -610,7 +618,11 @@ module.exports = function(Slowparse, window, document, validators) {
     var html = '<div><p>text\n<a>more text</a></div>';
     var result = parse(html);
     var expected = {
-      type: 'MISMATCHED_CLOSE_TAG',
+      type: 'ORPHAN_CLOSE_TAG',
+      highlight: {
+        start: 29,
+        end: 34
+      },
       openTag: {
         name: 'p',
         start: 5,
@@ -660,7 +672,11 @@ module.exports = function(Slowparse, window, document, validators) {
         end: 18,
         value: "@keyfarmes"
       },
-      cursor: 7
+      cursor: 7,
+      highlight: {
+        start: 7,
+        end: 18
+      }
     };
     equal(result.error, expected, "keyfarmes is not accepted as @keyword");
   });
@@ -723,6 +739,10 @@ module.exports = function(Slowparse, window, document, validators) {
         end: 18,
         value: "@font-faec"
       },
+      highlight : {
+        start: 7,
+        end: 18
+      },
       cursor: 7
     };
     equal(result.error, expected, "font-faec is not accepted as @keyword");
@@ -746,7 +766,8 @@ module.exports = function(Slowparse, window, document, validators) {
     equal(result.error, {
       type: 'INVALID_TAG_NAME',
       openTag: { name: '-', start: 0, end: 2 },
-      cursor: 0
+      cursor: 0,
+      highlight: { start: 0, end: 2 }
     });
   });
 
@@ -808,25 +829,37 @@ module.exports = function(Slowparse, window, document, validators) {
     });
   });
 
-
-  test("correctly flag the opening tag for a missing closing tag", function () {
-    var html = '<body><p><h1><a href="">test</a></h1></p></body>';
-    var result = parse(html);
-    equal(result.error, {
-      type: 'MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING',
-      openTag: { start: 6, end: 9 },
-      closeTag: { name: 'p', start: 37, end: 40 },
-      cursor: 37
-    });
-  });
+  // Commented out as we've dropped this one temporarily
+  // test("correctly flag the opening tag for a missing closing tag", function () {
+  //   var html = '<body><p><h1><a href="">test</a></h1></p></body>';
+  //   var result = parse(html);
+  //   equal(result.error, {
+  //     type: 'MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING',
+  //     openTag: { start: 6, end: 9 },
+  //     closeTag: { name: 'p', start: 37, end: 40 },
+  //     cursor: 37
+  //   });
+  // });
 
   test("correctly flag the opening tag in the source for a block closer with auto-closed flow element", function () {
     var html = '<body><p><h1>lol</h1></h2></p></body>';
     var result = parse(html);
     equal(result.error, {
-      type: 'MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING',
-      openTag: { name: 'p', start: 6, end: 9 },
-      closeTag: { name: 'h2', start: 21, end: 25 },
+      type: 'ORPHAN_CLOSE_TAG',
+      highlight: {
+        start: 21,
+        end: 25
+      },
+      openTag: {
+        name: 'body',
+        start: 0,
+        end: 6
+      },
+      closeTag: {
+        name: 'h2',
+        start: 21,
+        end: 25
+      },
       cursor: 21
     });
   });
@@ -835,8 +868,21 @@ module.exports = function(Slowparse, window, document, validators) {
     var html = '<body><div><p><h1>lol</h1></</div></body>';
     var result = parse(html);
     equal(result.error, {
-      type: 'MISSING_CLOSING_TAG_NAME',
-      openTag: { name: 'p', start: 11, end: 14 },
+      type: 'ORPHAN_CLOSE_TAG',
+      highlight: {
+        start: 26,
+        end: 28
+      },
+      openTag: {
+        name: 'div',
+        start: 6,
+        end: 11
+      },
+      closeTag: {
+        name: '',
+        start: 26,
+        end: 28
+      },
       cursor: 26
     });
   });

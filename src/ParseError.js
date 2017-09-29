@@ -18,7 +18,6 @@ module.exports = (function() {
   function ParseError(type) {
     this.name = "ParseError";
 
-
     if (!(type in ParseErrorBuilders))
       throw new Error("Unknown ParseError type: " + type);
     var args = [];
@@ -33,11 +32,6 @@ module.exports = (function() {
     parseInfo = ParseErrorBuilders._combine({
       type: type
     }, parseInfo);
-
-
-    console.log("parseInfo");
-    console.log(parseInfo);
-    console.log(arguments);
 
     this.message = type;
     this.parseInfo = parseInfo;

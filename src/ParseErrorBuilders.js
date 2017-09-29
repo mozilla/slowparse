@@ -113,10 +113,6 @@ module.exports = (function() {
       };
     },
     ATTRIBUTE_IN_CLOSING_TAG: function(parser) {
-      console.log("ATTRIBUTE_IN_CLOSING_TAG");
-      console.log(parser);
-      console.log(parser.domBuilder.currentNode);
-
       var currentNode = parser.domBuilder.currentNode;
       var end = parser.stream.pos;
 
@@ -183,9 +179,6 @@ module.exports = (function() {
       if (!parser.stream.end()) {
         pos = parser.stream.makeToken().interval.start;
       }
-      console.log("UNQUOTED_ATTR_VALUE");
-      console.log(parser);
-      console.log(parser.stream.makeToken());
       return {
         start: pos,
         cursor: pos,
@@ -216,8 +209,7 @@ module.exports = (function() {
             value: attrToken.value
           }
         },
-        cursor: attrToken.interval.start,
-        token : token
+        cursor: attrToken.interval.start
       };
     },
     UNSUPPORTED_ATTR_NAMESPACE: function(parser, attrToken, token) {
@@ -352,9 +344,6 @@ module.exports = (function() {
       };
     },
     MISSING_CSS_BLOCK_OPENER: function(parser, start, end, selector) {
-      console.log("MISSING_CSS_BLOCK_OPENER");
-      console.log(parser);
-
       return {
         cssSelector: {
           start: start,

@@ -579,12 +579,12 @@ module.exports = (function(){
         if(nameTok.value.indexOf(":") !== -1) {
           var parts = nameTok.value.split(":");
           if(parts.length > 2) {
-            throw new ParseError("MULTIPLE_ATTR_NAMESPACES", this, nameTok, token);
+            throw new ParseError("MULTIPLE_ATTR_NAMESPACES", this, nameTok);
           }
           var nameSpace = parts[0],
               attributeName = parts[1];
           if(!this._supportedAttributeNameSpace(nameSpace)) {
-            throw new ParseError("UNSUPPORTED_ATTR_NAMESPACE", this, nameTok, token);
+            throw new ParseError("UNSUPPORTED_ATTR_NAMESPACE", this, nameTok);
           }
         }
 
