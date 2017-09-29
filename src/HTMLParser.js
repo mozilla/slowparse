@@ -317,12 +317,12 @@ module.exports = (function(){
         if (closeTagName != openTagName) {
 
 
-          // TODO - Temporarily commenting out Pomax's new error
+          //Are we dealing with a rogue </ here?
+          if (closeTagName === "") {
+            throw new ParseError("MISSING_CLOSING_TAG_NAME", token, openTagName, this.domBuilder.currentNode.closeWarnings);
+          }
 
-          // Are we dealing with a rogue </ here?
-          // if (closeTagName === "") {
-          //   throw new ParseError("MISSING_CLOSING_TAG_NAME", token, openTagName, this.domBuilder.currentNode.closeWarnings);
-          // }
+          // TODO - Temporarily commenting out Pomax's new error
 
           // Are we dealing with a tag that is closed in the source,
           // even though based on DOM parsing it already got closed?
@@ -444,8 +444,6 @@ module.exports = (function(){
     // the stream to be right after the end of the closing tag's tag
     // name.
     _parseEndCloseTag: function() {
-      console.log("_parseEndCloseTag");
-      console.log(this.stream);
       this.stream.eatSpace();
       if (this.stream.next() != '>') {
         if(this.containsAttribute(this.stream)) {

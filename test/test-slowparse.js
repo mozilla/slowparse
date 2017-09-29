@@ -864,24 +864,29 @@ module.exports = function(Slowparse, window, document, validators) {
     });
   });
 
+  test("testing </", function () {
+    var html = '<body><div></</body>';
+    var result = parse(html);
+    equal(result.error, {
+      type: "MISSING_CLOSING_TAG_NAME",
+      openTag: {
+        name: "div",
+        start: 11,
+        end: 13
+      },
+      cursor: 11
+    });
+  });
+
   test("testing </ and auto-closed tags", function () {
     var html = '<body><div><p><h1>lol</h1></</div></body>';
     var result = parse(html);
     equal(result.error, {
-      type: 'ORPHAN_CLOSE_TAG',
-      highlight: {
-        start: 26,
-        end: 28
-      },
+      type: "MISSING_CLOSING_TAG_NAME",
       openTag: {
-        name: 'div',
-        start: 6,
-        end: 11
-      },
-      closeTag: {
-        name: '',
-        start: 26,
-        end: 28
+        name: "p",
+        start: 11,
+        end: 14
       },
       cursor: 26
     });
@@ -900,7 +905,6 @@ module.exports = function(Slowparse, window, document, validators) {
     var result = parseCSS(css);
     equal(result.error, null);
   });
-
 
   return validators.getFailCount();
 };
