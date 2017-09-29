@@ -483,8 +483,7 @@ module.exports = (function(){
           var selfClosing = this.stream.match("/>", true);
           if (selfClosing) {
             if (!this.parsingSVG && !this._knownVoidHTMLElement(tagName))
-              throw new ParseError("SELF_CLOSING_NON_VOID_ELEMENT", this,
-                                   tagName, token);
+              throw new ParseError("SELF_CLOSING_NON_VOID_ELEMENT", this, tagName);
           } else
             this.stream.next();
           var end = this.stream.makeToken().interval.end;
@@ -596,7 +595,7 @@ module.exports = (function(){
         this.stream.makeToken();
         var quoteType = this.stream.next();
         if (quoteType !== '"' && quoteType !== "'") {
-          throw new ParseError("UNQUOTED_ATTR_VALUE", this, token);
+          throw new ParseError("UNQUOTED_ATTR_VALUE", this);
         }
         if (quoteType === '"') {
           this.stream.eatWhile(/[^"]/);
@@ -604,7 +603,7 @@ module.exports = (function(){
           this.stream.eatWhile(/[^']/);
         }
         if (this.stream.next() !== quoteType) {
-          throw new ParseError("UNTERMINATED_ATTR_VALUE", this, nameTok, token);
+          throw new ParseError("UNTERMINATED_ATTR_VALUE", this, nameTok);
         }
         var valueTok = this.stream.makeToken();
 

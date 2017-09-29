@@ -156,7 +156,7 @@ module.exports = (function() {
         token : token
       };
     },
-    UNTERMINATED_ATTR_VALUE: function(parser, nameTok, token) {
+    UNTERMINATED_ATTR_VALUE: function(parser, nameTok) {
       var currentNode = parser.domBuilder.currentNode,
           openTag = this._combine({
             name: currentNode.nodeName.toLowerCase()
@@ -175,19 +175,20 @@ module.exports = (function() {
       return {
         openTag: openTag,
         attribute: attribute,
-        cursor: attribute.value.start,
-        token : token
+        cursor: attribute.value.start
       };
     },
-    UNQUOTED_ATTR_VALUE: function(parser, token) {
+    UNQUOTED_ATTR_VALUE: function(parser) {
       var pos = parser.stream.pos;
       if (!parser.stream.end()) {
         pos = parser.stream.makeToken().interval.start;
       }
+      console.log("UNQUOTED_ATTR_VALUE");
+      console.log(parser);
+      console.log(parser.stream.makeToken());
       return {
         start: pos,
         cursor: pos,
-        token : token
       };
     },
     INVALID_ATTR_NAME: function(parser, attrToken) {
@@ -253,7 +254,7 @@ module.exports = (function() {
         token : token
       };
     },
-    SELF_CLOSING_NON_VOID_ELEMENT: function(parser, tagName, token) {
+    SELF_CLOSING_NON_VOID_ELEMENT: function(parser, tagName) {
       var start = parser.domBuilder.currentNode.parseInfo.openTag.start,
           end = parser.stream.makeToken().interval.end;
       return {
@@ -261,7 +262,10 @@ module.exports = (function() {
         start: start,
         end: end,
         cursor: start,
-        token : token
+        highlight : {
+          start: start,
+          end: end
+        }
       };
     },
     UNTERMINATED_CLOSE_TAG: function(parser, token) {
@@ -306,7 +310,7 @@ module.exports = (function() {
       };
     },
     // These are CSS errors.
-    UNKOWN_CSS_KEYWORD: function(parser, start, end, value, token) {
+    UNKOWN_CSS_KEYWORD: function(parser, start, end, value) {
       return {
         cssKeyword: {
           start: start,
@@ -314,20 +318,26 @@ module.exports = (function() {
           value: value
         },
         cursor: start,
-        token : token
+        highlight : {
+          start: start,
+          end: end
+        }
       };
     },
     MISSING_CSS_SELECTOR: function(parser, start, end, token) {
       return {
         cssBlock: {
-          start: start,
-          end: end
+          start: start + 1,
+          end: end + 1
         },
         cursor: start,
-        token : token
+        highlight: {
+          start: start + 1,
+          end: end + 1
+        }
       };
     },
-    UNFINISHED_CSS_SELECTOR: function(parser, start, end, selector, token) {
+    UNFINISHED_CSS_SELECTOR: function(parser, start, end, selector) {
       return {
         cssSelector: {
           start: start,
@@ -335,7 +345,10 @@ module.exports = (function() {
           selector: selector
         },
         cursor: start,
-        token : token
+        highlight : {
+          start: start,
+          end: end
+        }
       };
     },
     MISSING_CSS_BLOCK_OPENER: function(parser, start, end, selector) {
@@ -376,7 +389,7 @@ module.exports = (function() {
         token : token
       };
     },
-    UNFINISHED_CSS_PROPERTY: function(parser, start, end, property, token) {
+    UNFINISHED_CSS_PROPERTY: function(parser, start, end, property) {
       return {
         cssProperty: {
           start: start,
@@ -384,7 +397,10 @@ module.exports = (function() {
           property: property
         },
         cursor: start,
-        token : token
+        hightlight : {
+          start: start,
+          end: end
+        }
       };
     },
     MISSING_CSS_VALUE: function(parser, start, end, property, token) {
@@ -395,7 +411,10 @@ module.exports = (function() {
           property: property
         },
         cursor: start,
-        token : token
+        highlight : {
+          start: start,
+          end: end
+        }
       };
     },
     UNFINISHED_CSS_VALUE: function(parser, start, end, value, token) {
