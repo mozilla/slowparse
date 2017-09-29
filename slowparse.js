@@ -667,6 +667,7 @@ module.exports = (function(){
   var ParseError = require("./ParseError");
   var CSSParser = require("./CSSParser");
   var voidHtmlElements = require("./voidHtmlElements");
+  var similarity = require("./similarity");
 
   // ### Character Entity Parsing
   //
@@ -973,33 +974,30 @@ module.exports = (function(){
         };
         var openTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
         if (closeTagName != openTagName) {
+          var closeWarnings = this.domBuilder.currentNode.closeWarnings;
 
-
-          //Are we dealing with a rogue </ here?
+          // Are we dealing with a rogue </ here?
           if (closeTagName === "") {
-            throw new ParseError("MISSING_CLOSING_TAG_NAME", token, openTagName, this.domBuilder.currentNode.closeWarnings);
+            throw new ParseError("MISSING_CLOSING_TAG_NAME", token, openTagName, closeWarnings);
           }
 
-          // TODO - Temporarily commenting out Pomax's new error
+          // Are we dealing with a tag that is closed in the user-specified
+          // source code, but closed based on the result of DOM parsing?
+          if (closeWarnings) {
+             throw new ParseError("MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING", this, closeTagName, token);
+          }
 
-          // Are we dealing with a tag that is closed in the source,
-          // even though based on DOM parsing it already got closed?
-          // if (this.domBuilder.currentNode.closeWarnings) {
-          //   throw new ParseError("MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING", this, closeTagName, token);
-          // }
-
-          // TODO - End of temporary commenting out
-
-          // Check how similar the tags are in spelling
-          // if they are similar, there's probably an closed tag
-          // if not, it's probably an 'orphan'
+          // Check how similar the tags are in spelling. If they are similar, there's
+          // probably just a mismatched opening type for which the user typod the closing tag.
           var tagSimilarity = similarity(openTagName, closeTagName);
 
-          if(tagSimilarity < .5) {
-            throw new ParseError("ORPHAN_CLOSE_TAG", this, openTagName, closeTagName, token);
-          } else {
+          if(tagSimilarity >= .5) {
             throw new ParseError("MISMATCHED_CLOSE_TAG", this, openTagName, closeTagName, token);
           }
+
+          // If they are too dissimilar, then we consider this an 'orphan' closing
+          // tag, not matched to anything.
+          throw new ParseError("ORPHAN_CLOSE_TAG", this, openTagName, closeTagName, token);
         }
         this._parseEndCloseTag();
       }
@@ -1289,51 +1287,7 @@ module.exports = (function(){
   return HTMLParser;
 }());
 
-
-
-function similarity(s1, s2) {
-  var longer = s1;
-  var shorter = s2;
-  if (s1.length < s2.length) {
-    longer = s2;
-    shorter = s1;
-  }
-  var longerLength = longer.length;
-  if (longerLength == 0) {
-    return 1.0;
-  }
-  return (longerLength - editDistance(longer, shorter)) / parseFloat(longerLength);
-}
-
-
-
-function editDistance(s1, s2) {
-  s1 = s1.toLowerCase();
-  s2 = s2.toLowerCase();
-
-  var costs = new Array();
-  for (var i = 0; i <= s1.length; i++) {
-    var lastValue = i;
-    for (var j = 0; j <= s2.length; j++) {
-      if (i == 0)
-        costs[j] = j;
-      else {
-        if (j > 0) {
-          var newValue = costs[j - 1];
-          if (s1.charAt(i - 1) != s2.charAt(j - 1))
-            newValue = Math.min(Math.min(newValue, lastValue),
-              costs[j]) + 1;
-          costs[j - 1] = lastValue;
-          lastValue = newValue;
-        }
-      }
-    }
-    if (i > 0)
-      costs[s2.length] = lastValue;
-  }
-  return costs[s2.length];
-}
-},{"./CSSParser":1,"./ParseError":6,"./checkMixedContent":9,"./voidHtmlElements":10}],5:[function(require,module,exports){
+},{"./CSSParser":1,"./ParseError":6,"./checkMixedContent":9,"./similarity":10,"./voidHtmlElements":11}],5:[function(require,module,exports){
   // ### DOM Node Shim
   //
   // This represents a superficial form of a DOM node which contains most of
@@ -1454,7 +1408,7 @@ module.exports = (function(){
   return Node;
 }());
 
-},{"./voidHtmlElements":10}],6:[function(require,module,exports){
+},{"./voidHtmlElements":11}],6:[function(require,module,exports){
 // ### Errors
 //
 // `ParseError` is an internal error class used to indicate a parsing error.
@@ -2186,12 +2140,64 @@ module.exports = {
 };
 
 },{}],10:[function(require,module,exports){
+/**
+ * ...
+ */
+function editDistance(s1, s2) {
+  s1 = s1.toLowerCase();
+  s2 = s2.toLowerCase();
+
+  var costs = [];
+  for (var i = 0; i <= s1.length; i++) {
+    var lastValue = i;
+    for (var j = 0; j <= s2.length; j++) {
+      if (i == 0) {
+        costs[j] = j;
+      }
+      else {
+        if (j > 0) {
+          var newValue = costs[j - 1];
+          if (s1.charAt(i - 1) != s2.charAt(j - 1)) {
+            newValue = Math.min(newValue, lastValue, costs[j]) + 1;
+          }
+          costs[j - 1] = lastValue;
+          lastValue = newValue;
+        }
+      }
+    }
+    if (i > 0) {
+      costs[s2.length] = lastValue;
+    }
+  }
+  return costs[s2.length];
+}
+
+/**
+ * ...
+ */
+function similarity(s1, s2) {
+  var longer = s1;
+  var shorter = s2;
+  if (s1.length < s2.length) {
+    longer = s2;
+    shorter = s1;
+  }
+  var longerLength = longer.length;
+  if (longerLength == 0) {
+    return 1;
+  }
+  return (longerLength - editDistance(longer, shorter)) / longerLength;
+};
+
+module.exports = similarity;
+
+},{}],11:[function(require,module,exports){
 // A list of void HTML elements
 module.exports = ["area", "base", "br", "col", "command", "embed", "hr",
                   "img", "input", "keygen", "link", "meta", "param",
                   "source", "track", "wbr"];
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 // Slowparse is a token stream parser for HTML and CSS text,
 // recording regions of interest during the parse run and
 // signaling any errors detected accompanied by relevant
@@ -2347,5 +2353,5 @@ module.exports = ["area", "base", "br", "col", "command", "embed", "hr",
   }
 }());
 
-},{"./CSSParser":1,"./DOMBuilder":2,"./HTMLParser":4,"./Stream":8}]},{},[11])(11)
+},{"./CSSParser":1,"./DOMBuilder":2,"./HTMLParser":4,"./Stream":8}]},{},[12])(12)
 });
