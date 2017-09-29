@@ -41,7 +41,7 @@ module.exports = (function() {
       return {
         openTag: openTag,
         cursor: openTag.start,
-        token : token
+        highlight: token.interval
       };
     },
     MISSING_CLOSING_TAG_NAME: function(token, openTagName, autocloseWarnings) {
@@ -79,7 +79,7 @@ module.exports = (function() {
             name: closeTagName
           }, token.interval);
       return {
-        token: token,
+        highlight: token.interval,
         openTag: openTag,
         closeTag: closeTag,
         cursor: closeTag.start
@@ -92,6 +92,7 @@ module.exports = (function() {
             name: closeTagName
           }, token.interval);
       return {
+        highlight: token.interval,
         openTag: tag.parseInfo.openTag,
         closeTag: closeTag,
         cursor: closeTag.start
@@ -337,18 +338,20 @@ module.exports = (function() {
         token : token
       };
     },
-    MISSING_CSS_BLOCK_OPENER: function(parser, start, end, selector, token) {
+    MISSING_CSS_BLOCK_OPENER: function(parser, start, end, selector) {
+      console.log("MISSING_CSS_BLOCK_OPENER");
+      console.log(parser);
+
       return {
         cssSelector: {
           start: start,
           end: end,
           selector: selector
         },
-        cursor: start,
-        token : token
+        cursor: start
       };
     },
-    INVALID_CSS_PROPERTY_NAME: function(parser, start, end, property, token) {
+    INVALID_CSS_PROPERTY_NAME: function(parser, start, end, property) {
       return {
         cssProperty: {
           start: start,
@@ -356,7 +359,10 @@ module.exports = (function() {
           property: property
         },
         cursor: start,
-        token : token
+        highlight : {
+          start: start,
+          end: end
+        }
       };
     },
     MISSING_CSS_PROPERTY: function(parser, start, end, selector, token) {
@@ -421,7 +427,7 @@ module.exports = (function() {
         token : token
       };
     },
-    MISSING_CSS_BLOCK_CLOSER: function(parser, start, end, value, token) {
+    MISSING_CSS_BLOCK_CLOSER: function(parser, start, end, value) {
       return {
         cssValue: {
           start: start,
@@ -429,7 +435,10 @@ module.exports = (function() {
           value: value
         },
         cursor: start,
-        token : token
+        highlight: {
+          start: start,
+          end: end
+        }
       };
     },
     UNCAUGHT_CSS_PARSE_ERROR: function(parser, start, end, msg, token) {
