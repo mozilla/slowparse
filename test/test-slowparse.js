@@ -829,34 +829,43 @@ module.exports = function(Slowparse, window, document, validators) {
     });
   });
 
-  // Commented out as we've dropped this one temporarily
-  // test("correctly flag the opening tag for a missing closing tag", function () {
-  //   var html = '<body><p><h1><a href="">test</a></h1></p></body>';
-  //   var result = parse(html);
-  //   equal(result.error, {
-  //     type: 'MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING',
-  //     openTag: { start: 6, end: 9 },
-  //     closeTag: { name: 'p', start: 37, end: 40 },
-  //     cursor: 37
-  //   });
-  // });
+  test("correctly flag the opening tag for a missing closing tag", function () {
+    var html = '<body><p><h1><a href="">test</a></h1></p></body>';
+    var result = parse(html);
+    equal(result.error, {
+      type: "MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING",
+      highlight: {
+        start: 37,
+        end: 40
+      },
+      openTag: {
+        start: 6,
+        end: 9
+      },
+      closeTag: {
+        name: "p",
+        start: 37,
+        end: 40
+      },
+      cursor: 37
+    });
+  });
 
   test("correctly flag the opening tag in the source for a block closer with auto-closed flow element", function () {
     var html = '<body><p><h1>lol</h1></h2></p></body>';
     var result = parse(html);
     equal(result.error, {
-      type: 'ORPHAN_CLOSE_TAG',
+      type: "MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING",
       highlight: {
         start: 21,
         end: 25
       },
       openTag: {
-        name: 'body',
-        start: 0,
-        end: 6
+        start: 6,
+        end: 9
       },
       closeTag: {
-        name: 'h2',
+        name: "h2",
         start: 21,
         end: 25
       },
@@ -864,24 +873,29 @@ module.exports = function(Slowparse, window, document, validators) {
     });
   });
 
+  test("testing </", function () {
+    var html = '<body><div></</body>';
+    var result = parse(html);
+    equal(result.error, {
+      type: "MISSING_CLOSING_TAG_NAME",
+      openTag: {
+        name: "div",
+        start: 11,
+        end: 13
+      },
+      cursor: 11
+    });
+  });
+
   test("testing </ and auto-closed tags", function () {
     var html = '<body><div><p><h1>lol</h1></</div></body>';
     var result = parse(html);
     equal(result.error, {
-      type: 'ORPHAN_CLOSE_TAG',
-      highlight: {
-        start: 26,
-        end: 28
-      },
+      type: "MISSING_CLOSING_TAG_NAME",
       openTag: {
-        name: 'div',
-        start: 6,
-        end: 11
-      },
-      closeTag: {
-        name: '',
-        start: 26,
-        end: 28
+        name: "p",
+        start: 11,
+        end: 14
       },
       cursor: 26
     });
@@ -900,7 +914,6 @@ module.exports = function(Slowparse, window, document, validators) {
     var result = parseCSS(css);
     equal(result.error, null);
   });
-
 
   return validators.getFailCount();
 };
