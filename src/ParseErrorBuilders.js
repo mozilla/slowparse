@@ -85,6 +85,44 @@ module.exports = (function() {
         cursor: closeTag.start
       };
     },
+
+    INVALID_CHILD_TAG_WARNING: function(parser, invalidTagName, token) {
+      // var openTag = parser.domBuilder.currentNode;
+      console.log("*(*(*))");
+      console.log(parser.domBuilder.currentNode);
+
+      var openTag = {
+        name:   parser.domBuilder.currentNode.nodeName.toLowerCase(),
+        start:  parser.domBuilder.currentNode.parseInfo.openTag.start,
+        end:    parser.domBuilder.currentNode.parseInfo.openTag.end
+      }
+
+      var invalidTag = {
+        name:   invalidTagName,
+        start:  token.interval.start,
+        end:    token.interval.end
+      }
+
+
+      console.log(openTag);
+      console.log("INVALID_CHILD_TAG_WARNING");
+      console.log(openTag);
+      console.log(parser.domBuilder.currentNode.parseInfo);
+      console.log("token");
+      console.log(token);
+      // var warnings = parser.domBuilder.currentNode.closeWarnings,
+      //     tag = warnings[0],
+      //     closeTag = this._combine({
+      //       name: closeTagName
+      //     }, token.interval);
+      return {
+        openTag : openTag,
+        invalidTag : invalidTag,
+        highlight: token.interval,
+        cursor: token.interval.start
+      };
+    },
+
     MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING: function(parser, closeTagName, token) {
       var warnings = parser.domBuilder.currentNode.closeWarnings,
           tag = warnings[0],

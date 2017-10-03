@@ -952,6 +952,25 @@ module.exports = (function(){
       var token = this.stream.makeToken();
       var tagName = token.value.slice(1).toLowerCase();
 
+      console.log("-----start-----");
+      // console.log(this.domBuilder.currentNode);
+      // console.log(token, tagName);
+
+      if(this.domBuilder.currentNode.nodeName == "P") {
+        if(tagName == "h1") {
+          console.log("FOUND AN H1 in a P");
+          console.log("token");
+          console.log(this.domBuilder.currentNode);
+          console.log("token", token);
+          console.log("tagName", tagName);
+          var invalidTagName = tagName;
+          console.log("-----end-----");
+          throw new ParseError("INVALID_CHILD_TAG_WARNING", this, invalidTagName, token);
+        }
+      }
+
+
+
       if (tagName === "svg")
         this.parsingSVG = true;
 
@@ -959,10 +978,17 @@ module.exports = (function(){
       // We want to report useful errors about whether the tag is unexpected
       // or doesn't match with the most recent opening tag.
       if (tagName[0] == '/') {
+
+
         activeTagNode = false;
         var closeTagName = tagName.slice(1).toLowerCase();
         if (closeTagName === "svg")
           this.parsingSVG = false;
+
+
+
+
+
         if (this._knownVoidHTMLElement(closeTagName))
           throw new ParseError("CLOSE_TAG_FOR_VOID_ELEMENT", this,
                                closeTagName, token);
@@ -973,6 +999,9 @@ module.exports = (function(){
           start: token.interval.start
         };
         var openTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
+
+        console.log("openTagName", openTagName, closeTagName);
+
         if (closeTagName != openTagName) {
           var closeWarnings = this.domBuilder.currentNode.closeWarnings;
 
@@ -1013,6 +1042,7 @@ module.exports = (function(){
         else {
           throw new ParseError("INVALID_TAG_NAME", tagName, token);
         }
+
 
         var parseInfo = { openTag: { start: token.interval.start }};
         var nameSpace = (this.parsingSVG ? this.svgNameSpace : undefined);
@@ -1261,7 +1291,7 @@ module.exports = (function(){
         }
         var valueTok = this.stream.makeToken();
 
-        //Add a new validator to check if there is a http link in a https page
+        // Add a new validator to check if there is a http link in a https page
         if (checkMixedContent && valueTok.value.match(/http:/) && isActiveContent(tagName, nameTok.value)) {
           this.warnings.push(
             new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok, token)
@@ -1287,7 +1317,7 @@ module.exports = (function(){
   return HTMLParser;
 }());
 
-},{"./CSSParser":1,"./ParseError":6,"./checkMixedContent":9,"./similarity":10,"./voidHtmlElements":11}],5:[function(require,module,exports){
+},{"./CSSParser":1,"./ParseError":6,"./checkMixedContent":9,"./similarity":11,"./voidHtmlElements":12}],5:[function(require,module,exports){
   // ### DOM Node Shim
   //
   // This represents a superficial form of a DOM node which contains most of
@@ -1408,7 +1438,7 @@ module.exports = (function(){
   return Node;
 }());
 
-},{"./voidHtmlElements":11}],6:[function(require,module,exports){
+},{"./voidHtmlElements":12}],6:[function(require,module,exports){
 // ### Errors
 //
 // `ParseError` is an internal error class used to indicate a parsing error.
@@ -1541,6 +1571,44 @@ module.exports = (function() {
         cursor: closeTag.start
       };
     },
+
+    INVALID_CHILD_TAG_WARNING: function(parser, invalidTagName, token) {
+      // var openTag = parser.domBuilder.currentNode;
+      console.log("*(*(*))");
+      console.log(parser.domBuilder.currentNode);
+
+      var openTag = {
+        name:   parser.domBuilder.currentNode.nodeName.toLowerCase(),
+        start:  parser.domBuilder.currentNode.parseInfo.openTag.start,
+        end:    parser.domBuilder.currentNode.parseInfo.openTag.end
+      }
+
+      var invalidTag = {
+        name:   invalidTagName,
+        start:  token.interval.start,
+        end:    token.interval.end
+      }
+
+
+      console.log(openTag);
+      console.log("INVALID_CHILD_TAG_WARNING");
+      console.log(openTag);
+      console.log(parser.domBuilder.currentNode.parseInfo);
+      console.log("token");
+      console.log(token);
+      // var warnings = parser.domBuilder.currentNode.closeWarnings,
+      //     tag = warnings[0],
+      //     closeTag = this._combine({
+      //       name: closeTagName
+      //     }, token.interval);
+      return {
+        openTag : openTag,
+        invalidTag : invalidTag,
+        highlight: token.interval,
+        cursor: token.interval.start
+      };
+    },
+
     MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING: function(parser, closeTagName, token) {
       var warnings = parser.domBuilder.currentNode.closeWarnings,
           tag = warnings[0],
@@ -2140,64 +2208,6 @@ module.exports = {
 };
 
 },{}],10:[function(require,module,exports){
-/**
- * ...
- */
-function editDistance(s1, s2) {
-  s1 = s1.toLowerCase();
-  s2 = s2.toLowerCase();
-
-  var costs = [];
-  for (var i = 0; i <= s1.length; i++) {
-    var lastValue = i;
-    for (var j = 0; j <= s2.length; j++) {
-      if (i == 0) {
-        costs[j] = j;
-      }
-      else {
-        if (j > 0) {
-          var newValue = costs[j - 1];
-          if (s1.charAt(i - 1) != s2.charAt(j - 1)) {
-            newValue = Math.min(newValue, lastValue, costs[j]) + 1;
-          }
-          costs[j - 1] = lastValue;
-          lastValue = newValue;
-        }
-      }
-    }
-    if (i > 0) {
-      costs[s2.length] = lastValue;
-    }
-  }
-  return costs[s2.length];
-}
-
-/**
- * ...
- */
-function similarity(s1, s2) {
-  var longer = s1;
-  var shorter = s2;
-  if (s1.length < s2.length) {
-    longer = s2;
-    shorter = s1;
-  }
-  var longerLength = longer.length;
-  if (longerLength == 0) {
-    return 1;
-  }
-  return (longerLength - editDistance(longer, shorter)) / longerLength;
-};
-
-module.exports = similarity;
-
-},{}],11:[function(require,module,exports){
-// A list of void HTML elements
-module.exports = ["area", "base", "br", "col", "command", "embed", "hr",
-                  "img", "input", "keygen", "link", "meta", "param",
-                  "source", "track", "wbr"];
-
-},{}],12:[function(require,module,exports){
 // Slowparse is a token stream parser for HTML and CSS text,
 // recording regions of interest during the parse run and
 // signaling any errors detected accompanied by relevant
@@ -2353,5 +2363,63 @@ module.exports = ["area", "base", "br", "col", "command", "embed", "hr",
   }
 }());
 
-},{"./CSSParser":1,"./DOMBuilder":2,"./HTMLParser":4,"./Stream":8}]},{},[12])(12)
+},{"./CSSParser":1,"./DOMBuilder":2,"./HTMLParser":4,"./Stream":8}],11:[function(require,module,exports){
+/**
+ * ...docs go here...
+ */
+function editDistance(s1, s2) {
+  s1 = s1.toLowerCase();
+  s2 = s2.toLowerCase();
+
+  var costs = [];
+  for (var i = 0; i <= s1.length; i++) {
+    var lastValue = i;
+    for (var j = 0; j <= s2.length; j++) {
+      if (i == 0) {
+        costs[j] = j;
+      }
+      else {
+        if (j > 0) {
+          var newValue = costs[j - 1];
+          if (s1.charAt(i - 1) != s2.charAt(j - 1)) {
+            newValue = Math.min(newValue, lastValue, costs[j]) + 1;
+          }
+          costs[j - 1] = lastValue;
+          lastValue = newValue;
+        }
+      }
+    }
+    if (i > 0) {
+      costs[s2.length] = lastValue;
+    }
+  }
+  return costs[s2.length];
+}
+
+/**
+ * ...
+ */
+function similarity(s1, s2) {
+  var longer = s1;
+  var shorter = s2;
+  if (s1.length < s2.length) {
+    longer = s2;
+    shorter = s1;
+  }
+  var longerLength = longer.length;
+  if (longerLength == 0) {
+    return 1;
+  }
+  return (longerLength - editDistance(longer, shorter)) / longerLength;
+};
+
+module.exports = similarity;
+
+},{}],12:[function(require,module,exports){
+// A list of void HTML elements
+module.exports = ["area", "base", "br", "col", "command", "embed", "hr",
+                  "img", "input", "keygen", "link", "meta", "param",
+                  "source", "track", "wbr"];
+
+},{}]},{},[10])(10)
 });

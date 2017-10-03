@@ -294,6 +294,25 @@ module.exports = (function(){
       var token = this.stream.makeToken();
       var tagName = token.value.slice(1).toLowerCase();
 
+      console.log("-----start-----");
+      // console.log(this.domBuilder.currentNode);
+      // console.log(token, tagName);
+
+      if(this.domBuilder.currentNode.nodeName == "P") {
+        if(tagName == "h1") {
+          console.log("FOUND AN H1 in a P");
+          console.log("token");
+          console.log(this.domBuilder.currentNode);
+          console.log("token", token);
+          console.log("tagName", tagName);
+          var invalidTagName = tagName;
+          console.log("-----end-----");
+          throw new ParseError("INVALID_CHILD_TAG_WARNING", this, invalidTagName, token);
+        }
+      }
+
+
+
       if (tagName === "svg")
         this.parsingSVG = true;
 
@@ -301,10 +320,17 @@ module.exports = (function(){
       // We want to report useful errors about whether the tag is unexpected
       // or doesn't match with the most recent opening tag.
       if (tagName[0] == '/') {
+
+
         activeTagNode = false;
         var closeTagName = tagName.slice(1).toLowerCase();
         if (closeTagName === "svg")
           this.parsingSVG = false;
+
+
+
+
+
         if (this._knownVoidHTMLElement(closeTagName))
           throw new ParseError("CLOSE_TAG_FOR_VOID_ELEMENT", this,
                                closeTagName, token);
@@ -315,6 +341,9 @@ module.exports = (function(){
           start: token.interval.start
         };
         var openTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
+
+        console.log("openTagName", openTagName, closeTagName);
+
         if (closeTagName != openTagName) {
           var closeWarnings = this.domBuilder.currentNode.closeWarnings;
 
@@ -355,6 +384,7 @@ module.exports = (function(){
         else {
           throw new ParseError("INVALID_TAG_NAME", tagName, token);
         }
+
 
         var parseInfo = { openTag: { start: token.interval.start }};
         var nameSpace = (this.parsingSVG ? this.svgNameSpace : undefined);
