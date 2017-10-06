@@ -788,6 +788,30 @@ module.exports = (function(){
       "li": ["li"]
     },
 
+    // Block-level HTML elements
+    blockLevelElements: [
+      "address", "article", "aside", "blockquote", "canvas", "dd", "div",
+      "dl", "dt", "fieldset", "figcaption", "figure", "footer", "form",
+      "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "li",
+      "main","nav","noscript","ol","output", "p","pre","section",
+      "table", "tfooter", "ul", "video"
+    ],
+
+    // Inline-level HTML elements
+    inlineLevelElements: [
+      "a", "b", "big", "i", "small", "tt","abbr", "acronym", "cite",
+      "code", "dfn", "em", "kbd", "strong", "samp", "time", "var", "bdo",
+      "br", "img", "map", "object", "q", "script", "span", "sub",
+      "sup", "button", "input", "label", "select", "textarea"
+    ],
+
+    // Returns the element type: Inline or Block
+    _elementType : function(tagName){
+      if (this.blockLevelElements.indexOf(tagName) > -1)  { return "block" }
+      if (this.inlineLevelElements.indexOf(tagName) > -1) { return "inline" }
+      return false;
+    },
+
     // We keep a list of all valid HTML5 elements.
     htmlElements: ["a", "abbr", "address", "area", "article", "aside",
                    "audio", "b", "base", "bdi", "bdo", "bgsound", "blink",
@@ -952,24 +976,17 @@ module.exports = (function(){
       var token = this.stream.makeToken();
       var tagName = token.value.slice(1).toLowerCase();
 
-      console.log("-----start-----");
-      // console.log(this.domBuilder.currentNode);
-      // console.log(token, tagName);
+      var parentTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
 
-      if(this.domBuilder.currentNode.nodeName == "P") {
-        if(tagName == "h1") {
-          console.log("FOUND AN H1 in a P");
-          console.log("token");
-          console.log(this.domBuilder.currentNode);
-          console.log("token", token);
-          console.log("tagName", tagName);
-          var invalidTagName = tagName;
-          console.log("-----end-----");
-          throw new ParseError("INVALID_CHILD_TAG_WARNING", this, invalidTagName, token);
-        }
+      console.log("parentTag", parentTagName);
+      console.log("type", this._elementType(parentTagName));
+      console.log("thisTag", tagName);
+      console.log("type", this._elementType(tagName));
+
+      if(this._elementType(parentTagName) == "inline" && this._elementType(tagName) == "block"){
+        var invalidTagName = tagName;
+        throw new ParseError("BLOCK_INSIDE_INLINE_ELEMENT", this, invalidTagName, token);
       }
-
-
 
       if (tagName === "svg")
         this.parsingSVG = true;
@@ -1572,35 +1589,20 @@ module.exports = (function() {
       };
     },
 
-    INVALID_CHILD_TAG_WARNING: function(parser, invalidTagName, token) {
-      // var openTag = parser.domBuilder.currentNode;
-      console.log("*(*(*))");
-      console.log(parser.domBuilder.currentNode);
-
+    BLOCK_INSIDE_INLINE_ELEMENT: function(parser, invalidTagName, token) {
+      // The tag we are currrently inside
       var openTag = {
         name:   parser.domBuilder.currentNode.nodeName.toLowerCase(),
         start:  parser.domBuilder.currentNode.parseInfo.openTag.start,
         end:    parser.domBuilder.currentNode.parseInfo.openTag.end
       }
-
+      // The bad one we stumbled upon
       var invalidTag = {
         name:   invalidTagName,
         start:  token.interval.start,
         end:    token.interval.end
       }
 
-
-      console.log(openTag);
-      console.log("INVALID_CHILD_TAG_WARNING");
-      console.log(openTag);
-      console.log(parser.domBuilder.currentNode.parseInfo);
-      console.log("token");
-      console.log(token);
-      // var warnings = parser.domBuilder.currentNode.closeWarnings,
-      //     tag = warnings[0],
-      //     closeTag = this._combine({
-      //       name: closeTagName
-      //     }, token.interval);
       return {
         openTag : openTag,
         invalidTag : invalidTag,

@@ -86,35 +86,20 @@ module.exports = (function() {
       };
     },
 
-    INVALID_CHILD_TAG_WARNING: function(parser, invalidTagName, token) {
-      // var openTag = parser.domBuilder.currentNode;
-      console.log("*(*(*))");
-      console.log(parser.domBuilder.currentNode);
-
+    BLOCK_INSIDE_INLINE_ELEMENT: function(parser, invalidTagName, token) {
+      // The tag we are currrently inside
       var openTag = {
         name:   parser.domBuilder.currentNode.nodeName.toLowerCase(),
         start:  parser.domBuilder.currentNode.parseInfo.openTag.start,
         end:    parser.domBuilder.currentNode.parseInfo.openTag.end
       }
-
+      // The bad one we stumbled upon
       var invalidTag = {
         name:   invalidTagName,
         start:  token.interval.start,
         end:    token.interval.end
       }
 
-
-      console.log(openTag);
-      console.log("INVALID_CHILD_TAG_WARNING");
-      console.log(openTag);
-      console.log(parser.domBuilder.currentNode.parseInfo);
-      console.log("token");
-      console.log(token);
-      // var warnings = parser.domBuilder.currentNode.closeWarnings,
-      //     tag = warnings[0],
-      //     closeTag = this._combine({
-      //       name: closeTagName
-      //     }, token.interval);
       return {
         openTag : openTag,
         invalidTag : invalidTag,
