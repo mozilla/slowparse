@@ -93,9 +93,9 @@ Note that Slowparse has no built in mechanism for generating these errors, but o
 
 ## Working on Slowparse
 
-The slowparse code is split up into modules, located in the `./src` directory, which are aggregated in `index.js` for constructing the slowparse library. This construction is handled by [browserify](https://www.npmjs.com/package/browserify), and runs every time the `npm test` command is run.
+The slowparse code is split up into modules, located in the `./src` directory, which are aggregated by `./src/index.js` for constructing the slowparse library. This construction is handled by [browserify](https://www.npmjs.com/package/browserify), and runs every time the `npm test` command is run, yielding a rebuilt `slowparse.js`.
 
-If you wish to help out on Slowparse, we try to keep Slowparse test-drive, so if you have bad code that is being parsed incorrectly, create a new test case in the `./test/test-slowparse.js` file. To see how tests work, simply open that file and have a look at the various tests already in place. Generally all you need to do is copy-paste a test case that's similar to what you're testing, and changing the description, input HTML, and test summary for pass/fail results.
+If you wish to help out on Slowparse, we try to keep Slowparse test-driven, so if you have bad code that is being parsed incorrectly, create a new test case in the `./test/test-slowparse.js` file. To see how tests work, simply open that file and have a look at the various tests already in place. Generally all you need to do is copy-paste a test case that's similar to what you're testing, and changing the description, input HTML, and test summary for pass/fail results.
 
 Passing all tests is the basic prerequisite to a patch for Slowparse landing, so make sure your code comes with tests and all of them pass =)
 
