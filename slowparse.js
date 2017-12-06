@@ -978,10 +978,10 @@ module.exports = (function(){
 
       var parentTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
 
-      console.log("parentTag", parentTagName);
-      console.log("type", this._elementType(parentTagName));
-      console.log("thisTag", tagName);
-      console.log("type", this._elementType(tagName));
+      // console.log("parentTag", parentTagName);
+      // console.log("type", this._elementType(parentTagName));
+      // console.log("thisTag", tagName);
+      // console.log("type", this._elementType(tagName));
 
       if(this._elementType(parentTagName) == "inline" && this._elementType(tagName) == "block"){
         var invalidTagName = tagName;
@@ -1017,7 +1017,7 @@ module.exports = (function(){
         };
         var openTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
 
-        console.log("openTagName", openTagName, closeTagName);
+        // console.log("openTagName", openTagName, closeTagName);
 
         if (closeTagName != openTagName) {
           var closeWarnings = this.domBuilder.currentNode.closeWarnings;
@@ -1624,6 +1624,7 @@ module.exports = (function() {
         cursor: closeTag.start
       };
     },
+
     MISMATCHED_CLOSE_TAG: function(parser, openTagName, closeTagName, token) {
       var openTag = this._combine({
             name: openTagName
@@ -1633,6 +1634,7 @@ module.exports = (function() {
           }, token.interval);
       return {
         token: token,
+        highlight: token.interval,
         openTag: openTag,
         closeTag: closeTag,
         cursor: closeTag.start
