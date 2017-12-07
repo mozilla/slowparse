@@ -285,7 +285,7 @@ module.exports = (function(){
       // At the end, it's possible we're left with an open tag, so
       // we test for that.
       if (this.domBuilder.currentNode != this.domBuilder.fragment.node)
-        throw new ParseError("UNCLOSED_TAG", this, token);
+        throw new ParseError("UNCLOSED_TAG", this);
 
       return {
         warnings: (this.warnings.length > 0 ? this.warnings : false)

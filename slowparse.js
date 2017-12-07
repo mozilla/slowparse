@@ -942,8 +942,9 @@ module.exports = (function(){
 
       // At the end, it's possible we're left with an open tag, so
       // we test for that.
+
       if (this.domBuilder.currentNode != this.domBuilder.fragment.node)
-        throw new ParseError("UNCLOSED_TAG", this, token);
+        throw new ParseError("UNCLOSED_TAG", this);
 
       return {
         warnings: (this.warnings.length > 0 ? this.warnings : false)
@@ -1016,9 +1017,7 @@ module.exports = (function(){
         };
         var openTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
 
-        console.log("openTagName----", openTagName, closeTagName);
         var openTag = this.domBuilder.currentNode.parseInfo.openTag;
-        console.log(openTag);
 
         if (closeTagName != openTagName) {
           var closeWarnings = this.domBuilder.currentNode.closeWarnings;
@@ -1529,7 +1528,7 @@ module.exports = (function() {
       return obj;
     },
     // These are HTML errors.
-    UNCLOSED_TAG: function(parser, token) {
+    UNCLOSED_TAG: function(parser) {
       var currentNode = parser.domBuilder.currentNode,
           openTag = this._combine({
             name: currentNode.nodeName.toLowerCase()
@@ -1537,7 +1536,10 @@ module.exports = (function() {
       return {
         openTag: openTag,
         cursor: openTag.start,
-        token : token
+        highlight: {
+         start: openTag.start,
+         end: openTag.end
+        }
       };
     },
     INVALID_TAG_NAME: function(tagName, token) {

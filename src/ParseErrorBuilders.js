@@ -23,7 +23,7 @@ module.exports = (function() {
       return obj;
     },
     // These are HTML errors.
-    UNCLOSED_TAG: function(parser, token) {
+    UNCLOSED_TAG: function(parser) {
       var currentNode = parser.domBuilder.currentNode,
           openTag = this._combine({
             name: currentNode.nodeName.toLowerCase()
@@ -31,7 +31,10 @@ module.exports = (function() {
       return {
         openTag: openTag,
         cursor: openTag.start,
-        token : token
+        highlight: {
+         start: openTag.start,
+         end: openTag.end
+        }
       };
     },
     INVALID_TAG_NAME: function(tagName, token) {
