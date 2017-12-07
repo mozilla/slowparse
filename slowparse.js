@@ -942,7 +942,6 @@ module.exports = (function(){
 
       // At the end, it's possible we're left with an open tag, so
       // we test for that.
-
       if (this.domBuilder.currentNode != this.domBuilder.fragment.node)
         throw new ParseError("UNCLOSED_TAG", this);
 
@@ -980,13 +979,6 @@ module.exports = (function(){
       var tagName = token.value.slice(1).toLowerCase();
 
       var parentTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
-
-      //  console.log("tagName", tagName);
-      //  console.log("parentTag", parentTagName);
-      //  console.log("type", this._elementType(parentTagName));
-      //  console.log("thisTag", tagName);
-      //  console.log("type", this._elementType(tagName));
-      //  console.log("token", token);
 
       if(this._elementType(parentTagName) == "inline" && this._elementType(tagName) == "block"){
         var invalidTagName = tagName;

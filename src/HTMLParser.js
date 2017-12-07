@@ -322,13 +322,6 @@ module.exports = (function(){
 
       var parentTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
 
-      //  console.log("tagName", tagName);
-      //  console.log("parentTag", parentTagName);
-      //  console.log("type", this._elementType(parentTagName));
-      //  console.log("thisTag", tagName);
-      //  console.log("type", this._elementType(tagName));
-      //  console.log("token", token);
-
       if(this._elementType(parentTagName) == "inline" && this._elementType(tagName) == "block"){
         var invalidTagName = tagName;
         throw new ParseError("BLOCK_INSIDE_INLINE_ELEMENT", this, invalidTagName, token);
@@ -358,9 +351,7 @@ module.exports = (function(){
         };
         var openTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
 
-        console.log("openTagName----", openTagName, closeTagName);
         var openTag = this.domBuilder.currentNode.parseInfo.openTag;
-        console.log(openTag);
 
         if (closeTagName != openTagName) {
           var closeWarnings = this.domBuilder.currentNode.closeWarnings;
