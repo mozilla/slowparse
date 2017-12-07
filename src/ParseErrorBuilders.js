@@ -44,19 +44,33 @@ module.exports = (function() {
         highlight: token.interval
       };
     },
-    MISSING_CLOSING_TAG_NAME: function(token, openTagName, autocloseWarnings) {
-      var openTag = this._combine({
-            name: openTagName
-          }, token.interval);
+    MISSING_CLOSING_TAG_NAME: function(token, openTagName, openTag, autocloseWarnings) {
 
-      if (autocloseWarnings) {
-        var tag = autocloseWarnings[0];
-        openTag = this._combine({
-            name: tag.tagName
-          }, tag.parseInfo.openTag);
-      }
+        var openTag = {
+          name: openTagName,
+          start : openTag.start,
+          end: openTag.end
+        }
+
+      // if (autocloseWarnings) {
+ //        var tag = autocloseWarnings[0];
+ //        openTag = this._combine({
+ //            name: tag.tagName
+ //          }, tag.parseInfo.openTag);
+ //      }
+      // console.log(tag);
 
       return {
+        token: token,
+        closeTag: {
+          name: token.value,
+          start: token.interval.start,
+          end: token.interval.end
+        },
+        highlight: {
+          start: token.interval.start,
+          end: token.interval.end
+        },
         openTag: openTag,
         cursor: token.interval.start
       };
@@ -200,12 +214,35 @@ module.exports = (function() {
       };
     },
     UNQUOTED_ATTR_VALUE: function(parser) {
+
       var pos = parser.stream.pos;
       if (!parser.stream.end()) {
         pos = parser.stream.makeToken().interval.start;
       }
+
+      // To highlight the attribute for the user, we'll only want to highlight
+      // what we think the attribute value is. We determine that by looking for the first
+      // non-letter, non-number, non-dash character in the string.
+      var attributeString = parser.stream.text.substring(pos, parser.stream.text.length);
+      var i, code, len;
+      for (i = 0, len = attributeString.length; i < len; i++) {
+        code = attributeString.charCodeAt(i);
+        if (!(code > 47 && code < 58) && // numeric (0-9)
+            !(code > 64 && code < 91) && // upper alpha (A-Z)
+            !(code == 45) && // dash
+            !(code > 96 && code < 123)) { // lower alpha (a-z)
+              break;
+        }
+      }
+
+      var attributeValueBeginning = parser.stream.text.substring(pos, pos+i);
+
       return {
-        start: pos,
+        attributeValueBeginning: attributeValueBeginning,
+        highlight: {
+          start: pos,
+          end: pos + i
+        },
         cursor: pos,
       };
     },

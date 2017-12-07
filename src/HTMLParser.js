@@ -62,7 +62,6 @@ module.exports = (function(){
     // Used to use the commented version...
     // return stream.findNext(/<\/([\w\-]+)\s*>/, 1) === parentTagName;
     return stream.findNext(/<\/([\w\-]+)\s*/, 1) === parentTagName;
-
   }
 
   // 'foresee' if the next tag is a close tag
@@ -277,10 +276,8 @@ module.exports = (function(){
         if (this.stream.peek() == '<') {
           this._buildTextNode();
           this._parseStartTag();
-          console.log("START TAG");
         } else
           this.stream.next();
-          console.log("NEXT");
       }
 
       this._buildTextNode();
@@ -325,12 +322,6 @@ module.exports = (function(){
 
       var parentTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
 
-
-      console.log("=============");
-      console.log(this.domBuilder);
-      console.log("token", token);
-      console.log("parentTagName", parentTagName);
-
       //  console.log("tagName", tagName);
       //  console.log("parentTag", parentTagName);
       //  console.log("type", this._elementType(parentTagName));
@@ -367,14 +358,16 @@ module.exports = (function(){
         };
         var openTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
 
-        console.log("openTagName", openTagName, closeTagName);
+        console.log("openTagName----", openTagName, closeTagName);
+        var openTag = this.domBuilder.currentNode.parseInfo.openTag;
+        console.log(openTag);
 
         if (closeTagName != openTagName) {
           var closeWarnings = this.domBuilder.currentNode.closeWarnings;
 
           // Are we dealing with a rogue </ here?
           if (closeTagName === "") {
-            throw new ParseError("MISSING_CLOSING_TAG_NAME", token, openTagName, closeWarnings);
+            throw new ParseError("MISSING_CLOSING_TAG_NAME", token, openTagName, openTag, closeWarnings);
           }
 
           // Are we dealing with a tag that is closed in the user-specified
@@ -553,8 +546,6 @@ module.exports = (function(){
             activeTagNode = this.domBuilder.currentNode;
           }
 
-          console.log("activeTagNode:", activeTagNode);
-
           // If the opening tag represents a `<style>` element, we hand
           // off parsing to our CSS parser.
           if (!this.stream.end() && tagName === "style") {
@@ -588,15 +579,8 @@ module.exports = (function(){
                 optionalEndTag = this._knownOmittableCloseTagHtmlElement(parentTagName),
                 nextTagCloses = isNextCloseTag(this.stream);
 
-                console.log("parentTangName:", parentTagName);
-                console.log("next is Parent:", nextIsParent);
-
-
-              // if(nextIsParent && (optionalEndTag && nextTagCloses)) {
             if(nextIsParent && (needsEndTag || (optionalEndTag && nextTagCloses))) {
               if(this._knownOmittableCloseTagHtmlElement(tagName)) {
-
-                console.log("POPPING")
                 this.domBuilder.popElement();
               }
             }
