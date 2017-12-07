@@ -66,9 +66,10 @@ module.exports = (function() {
             name: closeTagName
           }, token.interval);
       return {
+        highlight: token.interval,
         closeTag: closeTag,
         cursor: closeTag.start,
-        token : token
+        token: token
       };
     },
     ORPHAN_CLOSE_TAG: function(parser, openTagName, closeTagName, token) {
@@ -130,6 +131,7 @@ module.exports = (function() {
           }, token.interval);
       return {
         token: token,
+        highlight : token.interval,
         openTag: openTag,
         closeTag: closeTag,
         cursor: closeTag.start
@@ -266,7 +268,10 @@ module.exports = (function() {
       return {
         openTag: openTag,
         cursor: openTag.start,
-        token : token
+        highlight: {
+          start: currentNode.parseInfo.openTag.start,
+          end: parser.stream.pos,
+        }
       };
     },
     SELF_CLOSING_NON_VOID_ELEMENT: function(parser, tagName) {
@@ -295,9 +300,13 @@ module.exports = (function() {
             end: end
           };
       return {
+        highlight: {
+          start: currentNode.parseInfo.closeTag.start,
+          end: end
+        },
         closeTag: closeTag,
         cursor: closeTag.start,
-        token : token
+        token: token
       };
     },
     //Special error type for a http link does not work in a https page

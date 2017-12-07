@@ -247,6 +247,7 @@ module.exports = function(Slowparse, window, document, validators) {
     equal(doc.childNodes[0].childNodes[0].getAttribute('d'), d, "path outline data is correct");
   });
 
+
   /*
   // Commented off because of a bug in jsdom, see https://github.com/tmpvar/jsdom/issues/705
   test("verifying SVG namespace", function() {
@@ -914,6 +915,20 @@ module.exports = function(Slowparse, window, document, validators) {
     var result = parseCSS(css);
     equal(result.error, null);
   });
+
+  test("testing <div><li></a (without closing >)", function () {
+     var html = '<body><div><li></a </div></body>';
+     var result = parse(html);
+     console.log(result);
+     equal(result.error, false);
+   });
+
+   test("testing <div><li></a> (with closing >)", function () {
+     var html = '<body><div><li></a> </div></body>';
+     var result = parse(html);
+     console.log(result);
+     equal(result.error, false);
+   });
 
   return validators.getFailCount();
 };

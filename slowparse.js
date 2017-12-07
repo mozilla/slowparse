@@ -717,7 +717,10 @@ module.exports = (function(){
   // 'foresee' if there is no more content in the parent element, and the
   // parent element is not an a element in the case of activeTag is a p element.
   function isNextTagParent(stream, parentTagName) {
-    return stream.findNext(/<\/([\w\-]+)\s*>/, 1) === parentTagName;
+    // Used to use the commented version...
+    // return stream.findNext(/<\/([\w\-]+)\s*>/, 1) === parentTagName;
+    return stream.findNext(/<\/([\w\-]+)\s*/, 1) === parentTagName;
+
   }
 
   // 'foresee' if the next tag is a close tag
@@ -932,8 +935,10 @@ module.exports = (function(){
         if (this.stream.peek() == '<') {
           this._buildTextNode();
           this._parseStartTag();
+          console.log("START TAG");
         } else
           this.stream.next();
+          console.log("NEXT");
       }
 
       this._buildTextNode();
@@ -978,10 +983,18 @@ module.exports = (function(){
 
       var parentTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
 
-      // console.log("parentTag", parentTagName);
-      // console.log("type", this._elementType(parentTagName));
-      // console.log("thisTag", tagName);
-      // console.log("type", this._elementType(tagName));
+
+      console.log("=============");
+      console.log(this.domBuilder);
+      console.log("token", token);
+      console.log("parentTagName", parentTagName);
+
+      //  console.log("tagName", tagName);
+      //  console.log("parentTag", parentTagName);
+      //  console.log("type", this._elementType(parentTagName));
+      //  console.log("thisTag", tagName);
+      //  console.log("type", this._elementType(tagName));
+      //  console.log("token", token);
 
       if(this._elementType(parentTagName) == "inline" && this._elementType(tagName) == "block"){
         var invalidTagName = tagName;
@@ -996,15 +1009,10 @@ module.exports = (function(){
       // or doesn't match with the most recent opening tag.
       if (tagName[0] == '/') {
 
-
         activeTagNode = false;
         var closeTagName = tagName.slice(1).toLowerCase();
         if (closeTagName === "svg")
           this.parsingSVG = false;
-
-
-
-
 
         if (this._knownVoidHTMLElement(closeTagName))
           throw new ParseError("CLOSE_TAG_FOR_VOID_ELEMENT", this,
@@ -1017,7 +1025,7 @@ module.exports = (function(){
         };
         var openTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
 
-        // console.log("openTagName", openTagName, closeTagName);
+        console.log("openTagName", openTagName, closeTagName);
 
         if (closeTagName != openTagName) {
           var closeWarnings = this.domBuilder.currentNode.closeWarnings;
@@ -1043,6 +1051,7 @@ module.exports = (function(){
 
           // If they are too dissimilar, then we consider this an 'orphan' closing
           // tag, not matched to anything.
+
           throw new ParseError("ORPHAN_CLOSE_TAG", this, openTagName, closeTagName, token);
         }
         this._parseEndCloseTag();
@@ -1202,6 +1211,8 @@ module.exports = (function(){
             activeTagNode = this.domBuilder.currentNode;
           }
 
+          console.log("activeTagNode:", activeTagNode);
+
           // If the opening tag represents a `<style>` element, we hand
           // off parsing to our CSS parser.
           if (!this.stream.end() && tagName === "style") {
@@ -1234,8 +1245,16 @@ module.exports = (function(){
                 needsEndTag = !allowsOmmitedEndTag(parentTagName, tagName),
                 optionalEndTag = this._knownOmittableCloseTagHtmlElement(parentTagName),
                 nextTagCloses = isNextCloseTag(this.stream);
+
+                console.log("parentTangName:", parentTagName);
+                console.log("next is Parent:", nextIsParent);
+
+
+              // if(nextIsParent && (optionalEndTag && nextTagCloses)) {
             if(nextIsParent && (needsEndTag || (optionalEndTag && nextTagCloses))) {
               if(this._knownOmittableCloseTagHtmlElement(tagName)) {
+
+                console.log("POPPING")
                 this.domBuilder.popElement();
               }
             }
@@ -1569,9 +1588,10 @@ module.exports = (function() {
             name: closeTagName
           }, token.interval);
       return {
+        highlight: token.interval,
         closeTag: closeTag,
         cursor: closeTag.start,
-        token : token
+        token: token
       };
     },
     ORPHAN_CLOSE_TAG: function(parser, openTagName, closeTagName, token) {
@@ -1624,7 +1644,6 @@ module.exports = (function() {
         cursor: closeTag.start
       };
     },
-
     MISMATCHED_CLOSE_TAG: function(parser, openTagName, closeTagName, token) {
       var openTag = this._combine({
             name: openTagName
@@ -1634,7 +1653,7 @@ module.exports = (function() {
           }, token.interval);
       return {
         token: token,
-        highlight: token.interval,
+        highlight : token.interval,
         openTag: openTag,
         closeTag: closeTag,
         cursor: closeTag.start
@@ -1771,7 +1790,10 @@ module.exports = (function() {
       return {
         openTag: openTag,
         cursor: openTag.start,
-        token : token
+        highlight: {
+          start: currentNode.parseInfo.openTag.start,
+          end: parser.stream.pos,
+        }
       };
     },
     SELF_CLOSING_NON_VOID_ELEMENT: function(parser, tagName) {
@@ -1800,9 +1822,13 @@ module.exports = (function() {
             end: end
           };
       return {
+        highlight: {
+          start: currentNode.parseInfo.closeTag.start,
+          end: end
+        },
         closeTag: closeTag,
         cursor: closeTag.start,
-        token : token
+        token: token
       };
     },
     //Special error type for a http link does not work in a https page
