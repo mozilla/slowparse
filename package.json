@@ -8,8 +8,8 @@
   },
   "scripts": {
     "build": "browserify ./src/index.js -o slowparse.js --standalone Slowparse",
-    "test": "node test.js",
-    "dev": "npm run build && npm run test"
+    "debug": "npm run build && node inspect test.js",
+    "test": "npm run build && node test.js"
   },
   "repository": {
     "type": "git",

@@ -17,11 +17,13 @@ module.exports = (function() {
 
   function ParseError(type) {
     this.name = "ParseError";
+
     if (!(type in ParseErrorBuilders))
       throw new Error("Unknown ParseError type: " + type);
     var args = [];
     for (var i = 1; i < arguments.length; i++)
       args.push(arguments[i]);
+
     var parseInfo = ParseErrorBuilders[type].apply(ParseErrorBuilders, args);
 
     /* This may seem a weird way of setting an attribute, but we want
@@ -30,6 +32,7 @@ module.exports = (function() {
     parseInfo = ParseErrorBuilders._combine({
       type: type
     }, parseInfo);
+
     this.message = type;
     this.parseInfo = parseInfo;
   }

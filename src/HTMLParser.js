@@ -9,6 +9,7 @@ module.exports = (function(){
   var ParseError = require("./ParseError");
   var CSSParser = require("./CSSParser");
   var voidHtmlElements = require("./voidHtmlElements");
+  var similarity = require("./similarity");
 
   // ### Character Entity Parsing
   //
@@ -58,7 +59,9 @@ module.exports = (function(){
   // 'foresee' if there is no more content in the parent element, and the
   // parent element is not an a element in the case of activeTag is a p element.
   function isNextTagParent(stream, parentTagName) {
-    return stream.findNext(/<\/([\w\-]+)\s*>/, 1) === parentTagName;
+    // Used to use the commented version...
+    // return stream.findNext(/<\/([\w\-]+)\s*>/, 1) === parentTagName;
+    return stream.findNext(/<\/([\w\-]+)\s*/, 1) === parentTagName;
   }
 
   // 'foresee' if the next tag is a close tag
@@ -127,6 +130,30 @@ module.exports = (function(){
       "th": ["th", "td"],
       "td": ["th", "td"],
       "li": ["li"]
+    },
+
+    // Block-level HTML elements
+    blockLevelElements: [
+      "address", "article", "aside", "blockquote", "canvas", "dd", "div",
+      "dl", "dt", "fieldset", "figcaption", "figure", "footer", "form",
+      "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "li",
+      "main","nav","noscript","ol","output", "p","pre","section",
+      "table", "tfooter", "ul", "video"
+    ],
+
+    // Inline-level HTML elements
+    inlineLevelElements: [
+      "a", "b", "big", "i", "small", "tt","abbr", "acronym", "cite",
+      "code", "dfn", "em", "kbd", "strong", "samp", "time", "var", "bdo",
+      "br", "img", "map", "object", "q", "script", "span", "sub",
+      "sup", "button", "input", "label", "select", "textarea"
+    ],
+
+    // Returns the element type: Inline or Block
+    _elementType : function(tagName){
+      if (this.blockLevelElements.indexOf(tagName) > -1)  { return "block" }
+      if (this.inlineLevelElements.indexOf(tagName) > -1) { return "inline" }
+      return false;
     },
 
     // We keep a list of all valid HTML5 elements.
@@ -293,6 +320,13 @@ module.exports = (function(){
       var token = this.stream.makeToken();
       var tagName = token.value.slice(1).toLowerCase();
 
+      var parentTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
+
+      if(this._elementType(parentTagName) == "inline" && this._elementType(tagName) == "block"){
+        var invalidTagName = tagName;
+        throw new ParseError("BLOCK_INSIDE_INLINE_ELEMENT", this, invalidTagName, token);
+      }
+
       if (tagName === "svg")
         this.parsingSVG = true;
 
@@ -300,10 +334,12 @@ module.exports = (function(){
       // We want to report useful errors about whether the tag is unexpected
       // or doesn't match with the most recent opening tag.
       if (tagName[0] == '/') {
+
         activeTagNode = false;
         var closeTagName = tagName.slice(1).toLowerCase();
         if (closeTagName === "svg")
           this.parsingSVG = false;
+
         if (this._knownVoidHTMLElement(closeTagName))
           throw new ParseError("CLOSE_TAG_FOR_VOID_ELEMENT", this,
                                closeTagName, token);
@@ -314,9 +350,36 @@ module.exports = (function(){
           start: token.interval.start
         };
         var openTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
-        if (closeTagName != openTagName)
-          throw new ParseError("MISMATCHED_CLOSE_TAG", this, openTagName,
-                               closeTagName, token);
+
+        var openTag = this.domBuilder.currentNode.parseInfo.openTag;
+
+        if (closeTagName != openTagName) {
+          var closeWarnings = this.domBuilder.currentNode.closeWarnings;
+
+          // Are we dealing with a rogue </ here?
+          if (closeTagName === "") {
+            throw new ParseError("MISSING_CLOSING_TAG_NAME", token, openTagName, openTag, closeWarnings);
+          }
+
+          // Are we dealing with a tag that is closed in the user-specified
+          // source code, but closed based on the result of DOM parsing?
+          if (closeWarnings) {
+             throw new ParseError("MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING", this, closeTagName, token);
+          }
+
+          // Check how similar the tags are in spelling. If they are similar, there's
+          // probably just a mismatched opening type for which the user typod the closing tag.
+          var tagSimilarity = similarity(openTagName, closeTagName);
+
+          if(tagSimilarity >= .5) {
+            throw new ParseError("MISMATCHED_CLOSE_TAG", this, openTagName, closeTagName, token);
+          }
+
+          // If they are too dissimilar, then we consider this an 'orphan' closing
+          // tag, not matched to anything.
+
+          throw new ParseError("ORPHAN_CLOSE_TAG", this, openTagName, closeTagName, token);
+        }
         this._parseEndCloseTag();
       }
 
@@ -332,6 +395,7 @@ module.exports = (function(){
           throw new ParseError("INVALID_TAG_NAME", tagName, token);
         }
 
+
         var parseInfo = { openTag: { start: token.interval.start }};
         var nameSpace = (this.parsingSVG ? this.svgNameSpace : undefined);
 
@@ -341,12 +405,25 @@ module.exports = (function(){
           var activeTagName = activeTagNode.nodeName.toLowerCase();
           if(this._knownOmittableCloseTags(activeTagName, tagName)) {
             this.domBuilder.popElement();
+
+            if (!this.domBuilder.currentNode.closeWarnings) {
+              this.domBuilder.currentNode.closeWarnings = [];
+            }
+
+            var childNodes = this.domBuilder.currentNode.childNodes,
+                position = childNodes.length - 1;
+
+            this.domBuilder.currentNode.closeWarnings.push({
+              tagName: activeTagName,
+              position: position,
+              parseInfo: childNodes[position].parseInfo
+            });
           }
         }
         // Store currentNode as the parentTagNode
         parentTagNode = this.domBuilder.currentNode;
-        this.domBuilder.pushElement(tagName, parseInfo, nameSpace);
 
+        this.domBuilder.pushElement(tagName, parseInfo, nameSpace);
         if (!this.stream.end())
           this._parseEndOpenTag(tagName);
       }
@@ -395,7 +472,7 @@ module.exports = (function(){
         }
         this.stream.next();
       }
-      throw new ParseError("UNCLOSED_TAG", this);
+      throw new ParseError("UNCLOSED_TAG", this, token);
     },
     // This helper function checks if the current tag contains an attribute
     containsAttribute: function (stream) {
@@ -442,8 +519,7 @@ module.exports = (function(){
           var selfClosing = this.stream.match("/>", true);
           if (selfClosing) {
             if (!this.parsingSVG && !this._knownVoidHTMLElement(tagName))
-              throw new ParseError("SELF_CLOSING_NON_VOID_ELEMENT", this,
-                                   tagName);
+              throw new ParseError("SELF_CLOSING_NON_VOID_ELEMENT", this, tagName);
           } else
             this.stream.next();
           var end = this.stream.makeToken().interval.end;
@@ -493,6 +569,7 @@ module.exports = (function(){
                 needsEndTag = !allowsOmmitedEndTag(parentTagName, tagName),
                 optionalEndTag = this._knownOmittableCloseTagHtmlElement(parentTagName),
                 nextTagCloses = isNextCloseTag(this.stream);
+
             if(nextIsParent && (needsEndTag || (optionalEndTag && nextTagCloses))) {
               if(this._knownOmittableCloseTagHtmlElement(tagName)) {
                 this.domBuilder.popElement();
@@ -517,7 +594,7 @@ module.exports = (function(){
               var token = this.stream.makeToken();
               throw new ParseError("UNBOUND_ATTRIBUTE_VALUE", this, token);
             }
-            throw new ParseError("UNTERMINATED_OPEN_TAG", this);
+            throw new ParseError("UNTERMINATED_OPEN_TAG", this, token);
           }
           attrToken.interval.start = startMark;
           throw new ParseError("INVALID_ATTR_NAME", this, attrToken);
@@ -567,10 +644,10 @@ module.exports = (function(){
         }
         var valueTok = this.stream.makeToken();
 
-        //Add a new validator to check if there is a http link in a https page
+        // Add a new validator to check if there is a http link in a https page
         if (checkMixedContent && valueTok.value.match(/http:/) && isActiveContent(tagName, nameTok.value)) {
           this.warnings.push(
-            new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok)
+            new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok, token)
           );
         }
 

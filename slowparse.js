@@ -667,6 +667,7 @@ module.exports = (function(){
   var ParseError = require("./ParseError");
   var CSSParser = require("./CSSParser");
   var voidHtmlElements = require("./voidHtmlElements");
+  var similarity = require("./similarity");
 
   // ### Character Entity Parsing
   //
@@ -716,7 +717,9 @@ module.exports = (function(){
   // 'foresee' if there is no more content in the parent element, and the
   // parent element is not an a element in the case of activeTag is a p element.
   function isNextTagParent(stream, parentTagName) {
-    return stream.findNext(/<\/([\w\-]+)\s*>/, 1) === parentTagName;
+    // Used to use the commented version...
+    // return stream.findNext(/<\/([\w\-]+)\s*>/, 1) === parentTagName;
+    return stream.findNext(/<\/([\w\-]+)\s*/, 1) === parentTagName;
   }
 
   // 'foresee' if the next tag is a close tag
@@ -785,6 +788,30 @@ module.exports = (function(){
       "th": ["th", "td"],
       "td": ["th", "td"],
       "li": ["li"]
+    },
+
+    // Block-level HTML elements
+    blockLevelElements: [
+      "address", "article", "aside", "blockquote", "canvas", "dd", "div",
+      "dl", "dt", "fieldset", "figcaption", "figure", "footer", "form",
+      "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "li",
+      "main","nav","noscript","ol","output", "p","pre","section",
+      "table", "tfooter", "ul", "video"
+    ],
+
+    // Inline-level HTML elements
+    inlineLevelElements: [
+      "a", "b", "big", "i", "small", "tt","abbr", "acronym", "cite",
+      "code", "dfn", "em", "kbd", "strong", "samp", "time", "var", "bdo",
+      "br", "img", "map", "object", "q", "script", "span", "sub",
+      "sup", "button", "input", "label", "select", "textarea"
+    ],
+
+    // Returns the element type: Inline or Block
+    _elementType : function(tagName){
+      if (this.blockLevelElements.indexOf(tagName) > -1)  { return "block" }
+      if (this.inlineLevelElements.indexOf(tagName) > -1) { return "inline" }
+      return false;
     },
 
     // We keep a list of all valid HTML5 elements.
@@ -951,6 +978,13 @@ module.exports = (function(){
       var token = this.stream.makeToken();
       var tagName = token.value.slice(1).toLowerCase();
 
+      var parentTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
+
+      if(this._elementType(parentTagName) == "inline" && this._elementType(tagName) == "block"){
+        var invalidTagName = tagName;
+        throw new ParseError("BLOCK_INSIDE_INLINE_ELEMENT", this, invalidTagName, token);
+      }
+
       if (tagName === "svg")
         this.parsingSVG = true;
 
@@ -958,10 +992,12 @@ module.exports = (function(){
       // We want to report useful errors about whether the tag is unexpected
       // or doesn't match with the most recent opening tag.
       if (tagName[0] == '/') {
+
         activeTagNode = false;
         var closeTagName = tagName.slice(1).toLowerCase();
         if (closeTagName === "svg")
           this.parsingSVG = false;
+
         if (this._knownVoidHTMLElement(closeTagName))
           throw new ParseError("CLOSE_TAG_FOR_VOID_ELEMENT", this,
                                closeTagName, token);
@@ -972,9 +1008,36 @@ module.exports = (function(){
           start: token.interval.start
         };
         var openTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
-        if (closeTagName != openTagName)
-          throw new ParseError("MISMATCHED_CLOSE_TAG", this, openTagName,
-                               closeTagName, token);
+
+        var openTag = this.domBuilder.currentNode.parseInfo.openTag;
+
+        if (closeTagName != openTagName) {
+          var closeWarnings = this.domBuilder.currentNode.closeWarnings;
+
+          // Are we dealing with a rogue </ here?
+          if (closeTagName === "") {
+            throw new ParseError("MISSING_CLOSING_TAG_NAME", token, openTagName, openTag, closeWarnings);
+          }
+
+          // Are we dealing with a tag that is closed in the user-specified
+          // source code, but closed based on the result of DOM parsing?
+          if (closeWarnings) {
+             throw new ParseError("MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING", this, closeTagName, token);
+          }
+
+          // Check how similar the tags are in spelling. If they are similar, there's
+          // probably just a mismatched opening type for which the user typod the closing tag.
+          var tagSimilarity = similarity(openTagName, closeTagName);
+
+          if(tagSimilarity >= .5) {
+            throw new ParseError("MISMATCHED_CLOSE_TAG", this, openTagName, closeTagName, token);
+          }
+
+          // If they are too dissimilar, then we consider this an 'orphan' closing
+          // tag, not matched to anything.
+
+          throw new ParseError("ORPHAN_CLOSE_TAG", this, openTagName, closeTagName, token);
+        }
         this._parseEndCloseTag();
       }
 
@@ -990,6 +1053,7 @@ module.exports = (function(){
           throw new ParseError("INVALID_TAG_NAME", tagName, token);
         }
 
+
         var parseInfo = { openTag: { start: token.interval.start }};
         var nameSpace = (this.parsingSVG ? this.svgNameSpace : undefined);
 
@@ -999,12 +1063,25 @@ module.exports = (function(){
           var activeTagName = activeTagNode.nodeName.toLowerCase();
           if(this._knownOmittableCloseTags(activeTagName, tagName)) {
             this.domBuilder.popElement();
+
+            if (!this.domBuilder.currentNode.closeWarnings) {
+              this.domBuilder.currentNode.closeWarnings = [];
+            }
+
+            var childNodes = this.domBuilder.currentNode.childNodes,
+                position = childNodes.length - 1;
+
+            this.domBuilder.currentNode.closeWarnings.push({
+              tagName: activeTagName,
+              position: position,
+              parseInfo: childNodes[position].parseInfo
+            });
           }
         }
         // Store currentNode as the parentTagNode
         parentTagNode = this.domBuilder.currentNode;
-        this.domBuilder.pushElement(tagName, parseInfo, nameSpace);
 
+        this.domBuilder.pushElement(tagName, parseInfo, nameSpace);
         if (!this.stream.end())
           this._parseEndOpenTag(tagName);
       }
@@ -1053,7 +1130,7 @@ module.exports = (function(){
         }
         this.stream.next();
       }
-      throw new ParseError("UNCLOSED_TAG", this);
+      throw new ParseError("UNCLOSED_TAG", this, token);
     },
     // This helper function checks if the current tag contains an attribute
     containsAttribute: function (stream) {
@@ -1100,8 +1177,7 @@ module.exports = (function(){
           var selfClosing = this.stream.match("/>", true);
           if (selfClosing) {
             if (!this.parsingSVG && !this._knownVoidHTMLElement(tagName))
-              throw new ParseError("SELF_CLOSING_NON_VOID_ELEMENT", this,
-                                   tagName);
+              throw new ParseError("SELF_CLOSING_NON_VOID_ELEMENT", this, tagName);
           } else
             this.stream.next();
           var end = this.stream.makeToken().interval.end;
@@ -1151,6 +1227,7 @@ module.exports = (function(){
                 needsEndTag = !allowsOmmitedEndTag(parentTagName, tagName),
                 optionalEndTag = this._knownOmittableCloseTagHtmlElement(parentTagName),
                 nextTagCloses = isNextCloseTag(this.stream);
+
             if(nextIsParent && (needsEndTag || (optionalEndTag && nextTagCloses))) {
               if(this._knownOmittableCloseTagHtmlElement(tagName)) {
                 this.domBuilder.popElement();
@@ -1175,7 +1252,7 @@ module.exports = (function(){
               var token = this.stream.makeToken();
               throw new ParseError("UNBOUND_ATTRIBUTE_VALUE", this, token);
             }
-            throw new ParseError("UNTERMINATED_OPEN_TAG", this);
+            throw new ParseError("UNTERMINATED_OPEN_TAG", this, token);
           }
           attrToken.interval.start = startMark;
           throw new ParseError("INVALID_ATTR_NAME", this, attrToken);
@@ -1225,10 +1302,10 @@ module.exports = (function(){
         }
         var valueTok = this.stream.makeToken();
 
-        //Add a new validator to check if there is a http link in a https page
+        // Add a new validator to check if there is a http link in a https page
         if (checkMixedContent && valueTok.value.match(/http:/) && isActiveContent(tagName, nameTok.value)) {
           this.warnings.push(
-            new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok)
+            new ParseError("HTTP_LINK_FROM_HTTPS_PAGE", this, nameTok, valueTok, token)
           );
         }
 
@@ -1251,7 +1328,7 @@ module.exports = (function(){
   return HTMLParser;
 }());
 
-},{"./CSSParser":1,"./ParseError":6,"./checkMixedContent":9,"./voidHtmlElements":10}],5:[function(require,module,exports){
+},{"./CSSParser":1,"./ParseError":6,"./checkMixedContent":9,"./similarity":11,"./voidHtmlElements":12}],5:[function(require,module,exports){
   // ### DOM Node Shim
   //
   // This represents a superficial form of a DOM node which contains most of
@@ -1372,7 +1449,7 @@ module.exports = (function(){
   return Node;
 }());
 
-},{"./voidHtmlElements":10}],6:[function(require,module,exports){
+},{"./voidHtmlElements":12}],6:[function(require,module,exports){
 // ### Errors
 //
 // `ParseError` is an internal error class used to indicate a parsing error.
@@ -1392,11 +1469,13 @@ module.exports = (function() {
 
   function ParseError(type) {
     this.name = "ParseError";
+
     if (!(type in ParseErrorBuilders))
       throw new Error("Unknown ParseError type: " + type);
     var args = [];
     for (var i = 1; i < arguments.length; i++)
       args.push(arguments[i]);
+
     var parseInfo = ParseErrorBuilders[type].apply(ParseErrorBuilders, args);
 
     /* This may seem a weird way of setting an attribute, but we want
@@ -1405,6 +1484,7 @@ module.exports = (function() {
     parseInfo = ParseErrorBuilders._combine({
       type: type
     }, parseInfo);
+
     this.message = type;
     this.parseInfo = parseInfo;
   }
@@ -1447,7 +1527,11 @@ module.exports = (function() {
           }, currentNode.parseInfo.openTag);
       return {
         openTag: openTag,
-        cursor: openTag.start
+        cursor: openTag.start,
+        highlight: {
+         start: openTag.start,
+         end: openTag.end
+        }
       };
     },
     INVALID_TAG_NAME: function(tagName, token) {
@@ -1456,7 +1540,39 @@ module.exports = (function() {
           }, token.interval);
       return {
         openTag: openTag,
-        cursor: openTag.start
+        cursor: openTag.start,
+        highlight: token.interval
+      };
+    },
+    MISSING_CLOSING_TAG_NAME: function(token, openTagName, openTag, autocloseWarnings) {
+
+        var openTag = {
+          name: openTagName,
+          start : openTag.start,
+          end: openTag.end
+        }
+
+      // if (autocloseWarnings) {
+ //        var tag = autocloseWarnings[0];
+ //        openTag = this._combine({
+ //            name: tag.tagName
+ //          }, tag.parseInfo.openTag);
+ //      }
+      // console.log(tag);
+
+      return {
+        token: token,
+        closeTag: {
+          name: token.value,
+          start: token.interval.start,
+          end: token.interval.end
+        },
+        highlight: {
+          start: token.interval.start,
+          end: token.interval.end
+        },
+        openTag: openTag,
+        cursor: token.interval.start
       };
     },
     UNEXPECTED_CLOSE_TAG: function(parser, closeTagName, token) {
@@ -1464,6 +1580,58 @@ module.exports = (function() {
             name: closeTagName
           }, token.interval);
       return {
+        highlight: token.interval,
+        closeTag: closeTag,
+        cursor: closeTag.start,
+        token: token
+      };
+    },
+    ORPHAN_CLOSE_TAG: function(parser, openTagName, closeTagName, token) {
+      var openTag = this._combine({
+            name: openTagName
+          }, parser.domBuilder.currentNode.parseInfo.openTag),
+          closeTag = this._combine({
+            name: closeTagName
+          }, token.interval);
+      return {
+        highlight: token.interval,
+        openTag: openTag,
+        closeTag: closeTag,
+        cursor: closeTag.start
+      };
+    },
+
+    BLOCK_INSIDE_INLINE_ELEMENT: function(parser, invalidTagName, token) {
+      // The tag we are currrently inside
+      var openTag = {
+        name:   parser.domBuilder.currentNode.nodeName.toLowerCase(),
+        start:  parser.domBuilder.currentNode.parseInfo.openTag.start,
+        end:    parser.domBuilder.currentNode.parseInfo.openTag.end
+      }
+      // The bad one we stumbled upon
+      var invalidTag = {
+        name:   invalidTagName,
+        start:  token.interval.start,
+        end:    token.interval.end
+      }
+
+      return {
+        openTag : openTag,
+        invalidTag : invalidTag,
+        highlight: token.interval,
+        cursor: token.interval.start
+      };
+    },
+
+    MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING: function(parser, closeTagName, token) {
+      var warnings = parser.domBuilder.currentNode.closeWarnings,
+          tag = warnings[0],
+          closeTag = this._combine({
+            name: closeTagName
+          }, token.interval);
+      return {
+        highlight: token.interval,
+        openTag: tag.parseInfo.openTag,
         closeTag: closeTag,
         cursor: closeTag.start
       };
@@ -1476,6 +1644,8 @@ module.exports = (function() {
             name: closeTagName
           }, token.interval);
       return {
+        token: token,
+        highlight : token.interval,
         openTag: openTag,
         closeTag: closeTag,
         cursor: closeTag.start
@@ -1484,6 +1654,7 @@ module.exports = (function() {
     ATTRIBUTE_IN_CLOSING_TAG: function(parser) {
       var currentNode = parser.domBuilder.currentNode;
       var end = parser.stream.pos;
+
       if (!parser.stream.end()) {
         end = parser.stream.makeToken().interval.start;
       }
@@ -1494,26 +1665,46 @@ module.exports = (function() {
       };
       return {
         closeTag: closeTag,
-        cursor: closeTag.start
+        cursor: closeTag.start,
+        highlight : {
+          start : closeTag.start,
+          end : closeTag.end
+        }
       };
     },
     CLOSE_TAG_FOR_VOID_ELEMENT: function(parser, closeTagName, token) {
+
       var closeTag = this._combine({
             name: closeTagName
           }, token.interval);
       return {
         closeTag: closeTag,
-        cursor: closeTag.start
+        cursor: closeTag.start,
+        highlight : token.interval
       };
     },
     UNTERMINATED_COMMENT: function(token) {
       var commentStart = token.interval.start;
       return {
+        highlight : {
+          start: commentStart,
+          end: commentStart + 4
+        },
         start: commentStart,
-        cursor: commentStart
+        end: commentStart + 4,
+        cursor: commentStart,
+        token : token
       };
     },
     UNTERMINATED_ATTR_VALUE: function(parser, nameTok) {
+
+      var pos = parser.stream.pos;
+      if (!parser.stream.end()) {
+        pos = parser.stream.makeToken().interval.start;
+      }
+
+
+
       var currentNode = parser.domBuilder.currentNode,
           openTag = this._combine({
             name: currentNode.nodeName.toLowerCase()
@@ -1529,26 +1720,75 @@ module.exports = (function() {
               start: valueTok.interval.start
             }
           };
+
+          // To highlight the attribute for the user, we'll only want to highlight
+          // what we think the attribute value is. We determine that by looking for the first
+          // non-letter, non-number, non-dash character in the string.
+
+          var attributeString = valueTok.value;
+          var i, code, len;
+          for (i = 1, len = attributeString.length; i < len; i++) {
+            code = attributeString.charCodeAt(i);
+            if (!(code > 47 && code < 58) && // numeric (0-9)
+                !(code > 64 && code < 91) && // upper alpha (A-Z)
+                !(code == 45) && // dash
+                !(code > 96 && code < 123)) { // lower alpha (a-z)
+                  break;
+            }
+          }
+
+          attribute.value.start++;
+          attribute.value.end = attribute.value.start + i - 1;
+
       return {
+        // attributeValueBeginning: attributeValueBeginning,
+        highlight: attribute.value,
         openTag: openTag,
         attribute: attribute,
         cursor: attribute.value.start
       };
     },
     UNQUOTED_ATTR_VALUE: function(parser) {
+
       var pos = parser.stream.pos;
       if (!parser.stream.end()) {
         pos = parser.stream.makeToken().interval.start;
       }
+
+      // To highlight the attribute for the user, we'll only want to highlight
+      // what we think the attribute value is. We determine that by looking for the first
+      // non-letter, non-number, non-dash character in the string.
+      var attributeString = parser.stream.text.substring(pos, parser.stream.text.length);
+      var i, code, len;
+      for (i = 0, len = attributeString.length; i < len; i++) {
+        code = attributeString.charCodeAt(i);
+        if (!(code > 47 && code < 58) && // numeric (0-9)
+            !(code > 64 && code < 91) && // upper alpha (A-Z)
+            !(code == 45) && // dash
+            !(code > 96 && code < 123)) { // lower alpha (a-z)
+              break;
+        }
+      }
+
+      var attributeValueBeginning = parser.stream.text.substring(pos, pos+i);
+
       return {
-        start: pos,
-        cursor: pos
+        attributeValueBeginning: attributeValueBeginning,
+        highlight: {
+          start: pos,
+          end: pos + i
+        },
+        cursor: pos,
       };
     },
     INVALID_ATTR_NAME: function(parser, attrToken) {
       return {
         start: attrToken.interval.start,
         end: attrToken.interval.end,
+        highlight : {
+          start : attrToken.interval.start,
+          end : attrToken.interval.end
+        },
         attribute: {
           name: {
             value: attrToken.value
@@ -1569,7 +1809,7 @@ module.exports = (function() {
         cursor: attrToken.interval.start
       };
     },
-    UNSUPPORTED_ATTR_NAMESPACE: function(parser, attrToken) {
+    UNSUPPORTED_ATTR_NAMESPACE: function(parser, attrToken, token) {
       return {
         start: attrToken.interval.start,
         end: attrToken.interval.end,
@@ -1578,17 +1818,19 @@ module.exports = (function() {
             value: attrToken.value
           }
         },
-        cursor: attrToken.interval.start
+        cursor: attrToken.interval.start,
+        token : token
       };
     },
-    UNBOUND_ATTRIBUTE_VALUE: function(parser, valueToken) {
+    UNBOUND_ATTRIBUTE_VALUE: function(parser, valueToken, token) {
       return {
         value: valueToken.value,
         interval: valueToken.interval,
-        cursor: valueToken.interval.start
+        cursor: valueToken.interval.start,
+        token : token
       };
     },
-    UNTERMINATED_OPEN_TAG: function(parser) {
+    UNTERMINATED_OPEN_TAG: function(parser, token) {
       var currentNode = parser.domBuilder.currentNode,
           openTag = {
             start: currentNode.parseInfo.openTag.start,
@@ -1597,7 +1839,11 @@ module.exports = (function() {
           };
       return {
         openTag: openTag,
-        cursor: openTag.start
+        cursor: openTag.start,
+        highlight: {
+          start: currentNode.parseInfo.openTag.start,
+          end: parser.stream.pos,
+        }
       };
     },
     SELF_CLOSING_NON_VOID_ELEMENT: function(parser, tagName) {
@@ -1607,10 +1853,14 @@ module.exports = (function() {
         name: tagName,
         start: start,
         end: end,
-        cursor: start
+        cursor: start,
+        highlight : {
+          start: start,
+          end: end
+        }
       };
     },
-    UNTERMINATED_CLOSE_TAG: function(parser) {
+    UNTERMINATED_CLOSE_TAG: function(parser, token) {
       var currentNode = parser.domBuilder.currentNode;
       var end = parser.stream.pos;
       if (!parser.stream.end()) {
@@ -1622,12 +1872,17 @@ module.exports = (function() {
             end: end
           };
       return {
+        highlight: {
+          start: currentNode.parseInfo.closeTag.start,
+          end: end
+        },
         closeTag: closeTag,
-        cursor: closeTag.start
+        cursor: closeTag.start,
+        token: token
       };
     },
     //Special error type for a http link does not work in a https page
-    HTTP_LINK_FROM_HTTPS_PAGE: function(parser, nameTok, valueTok) {
+    HTTP_LINK_FROM_HTTPS_PAGE: function(parser, nameTok, valueTok, token) {
       var currentNode = parser.domBuilder.currentNode,
           openTag = this._combine({
             name: currentNode.nodeName.toLowerCase()
@@ -1646,7 +1901,8 @@ module.exports = (function() {
       return {
         openTag: openTag,
         attribute: attribute,
-        cursor: attribute.value.start
+        cursor: attribute.value.start,
+        token : token
       };
     },
     // These are CSS errors.
@@ -1657,16 +1913,24 @@ module.exports = (function() {
           end: end,
           value: value
         },
-        cursor: start
-      };
-    },
-    MISSING_CSS_SELECTOR: function(parser, start, end) {
-      return {
-        cssBlock: {
+        cursor: start,
+        highlight : {
           start: start,
           end: end
+        }
+      };
+    },
+    MISSING_CSS_SELECTOR: function(parser, start, end, token) {
+      return {
+        cssBlock: {
+          start: start + 1,
+          end: end + 1
         },
-        cursor: start
+        cursor: start,
+        highlight: {
+          start: start + 1,
+          end: end + 1
+        }
       };
     },
     UNFINISHED_CSS_SELECTOR: function(parser, start, end, selector) {
@@ -1676,7 +1940,11 @@ module.exports = (function() {
           end: end,
           selector: selector
         },
-        cursor: start
+        cursor: start,
+        highlight : {
+          start: start,
+          end: end
+        }
       };
     },
     MISSING_CSS_BLOCK_OPENER: function(parser, start, end, selector) {
@@ -1696,17 +1964,22 @@ module.exports = (function() {
           end: end,
           property: property
         },
-        cursor: start
+        cursor: start,
+        highlight : {
+          start: start,
+          end: end
+        }
       };
     },
-    MISSING_CSS_PROPERTY: function(parser, start, end, selector) {
+    MISSING_CSS_PROPERTY: function(parser, start, end, selector, token) {
       return {
         cssSelector: {
           start: start,
           end: end,
           selector: selector
         },
-        cursor: start
+        cursor: start,
+        token : token
       };
     },
     UNFINISHED_CSS_PROPERTY: function(parser, start, end, property) {
@@ -1716,30 +1989,39 @@ module.exports = (function() {
           end: end,
           property: property
         },
-        cursor: start
+        cursor: start,
+        hightlight : {
+          start: start,
+          end: end
+        }
       };
     },
-    MISSING_CSS_VALUE: function(parser, start, end, property) {
+    MISSING_CSS_VALUE: function(parser, start, end, property, token) {
       return {
         cssProperty: {
           start: start,
           end: end,
           property: property
         },
-        cursor: start
+        cursor: start,
+        highlight : {
+          start: start,
+          end: end
+        }
       };
     },
-    UNFINISHED_CSS_VALUE: function(parser, start, end, value) {
+    UNFINISHED_CSS_VALUE: function(parser, start, end, value, token) {
       return {
         cssValue: {
           start: start,
           end: end,
           value: value
         },
-        cursor: start
+        cursor: start,
+        token : token
       };
     },
-    CSS_MIXED_ACTIVECONTENT: function(parser, property, propertyStart, value, valueStart, valueEnd) {
+    CSS_MIXED_ACTIVECONTENT: function(parser, property, propertyStart, value, valueStart, valueEnd, token) {
       var cssProperty = {
             property: property,
             start: propertyStart,
@@ -1753,7 +2035,8 @@ module.exports = (function() {
       return {
         cssProperty: cssProperty,
         cssValue: cssValue,
-        cursor: cssValue.start
+        cursor: cssValue.start,
+        token : token
       };
     },
     MISSING_CSS_BLOCK_CLOSER: function(parser, start, end, value) {
@@ -1763,36 +2046,42 @@ module.exports = (function() {
           end: end,
           value: value
         },
-        cursor: start
+        cursor: start,
+        highlight: {
+          start: start,
+          end: end
+        }
       };
     },
-    UNCAUGHT_CSS_PARSE_ERROR: function(parser, start, end, msg) {
+    UNCAUGHT_CSS_PARSE_ERROR: function(parser, start, end, msg, token) {
       return {
         error: {
           start: start,
           end: end,
           msg: msg
         },
-        cursor: start
+        cursor: start,
+        token : token
       };
     },
-    UNTERMINATED_CSS_COMMENT: function(start) {
+    UNTERMINATED_CSS_COMMENT: function(start, token) {
       return {
         start: start,
-        cursor: start
+        cursor: start,
+        token : token
       };
     },
-    HTML_CODE_IN_CSS_BLOCK: function(parser, start, end) {
+    HTML_CODE_IN_CSS_BLOCK: function(parser, start, end, token) {
       return {
         html: {
           start: start,
           end: end
         },
-        cursor: start
+        cursor: start,
+        token : token
       };
     }
   };
-
   return ParseErrorBuilders;
 
 }());
@@ -1999,12 +2288,6 @@ module.exports = {
 };
 
 },{}],10:[function(require,module,exports){
-// A list of void HTML elements
-module.exports = ["area", "base", "br", "col", "command", "embed", "hr",
-                  "img", "input", "keygen", "link", "meta", "param",
-                  "source", "track", "wbr"];
-
-},{}],11:[function(require,module,exports){
 // Slowparse is a token stream parser for HTML and CSS text,
 // recording regions of interest during the parse run and
 // signaling any errors detected accompanied by relevant
@@ -2160,5 +2443,63 @@ module.exports = ["area", "base", "br", "col", "command", "embed", "hr",
   }
 }());
 
-},{"./CSSParser":1,"./DOMBuilder":2,"./HTMLParser":4,"./Stream":8}]},{},[11])(11)
+},{"./CSSParser":1,"./DOMBuilder":2,"./HTMLParser":4,"./Stream":8}],11:[function(require,module,exports){
+/**
+ * ...docs go here...
+ */
+function editDistance(s1, s2) {
+  s1 = s1.toLowerCase();
+  s2 = s2.toLowerCase();
+
+  var costs = [];
+  for (var i = 0; i <= s1.length; i++) {
+    var lastValue = i;
+    for (var j = 0; j <= s2.length; j++) {
+      if (i == 0) {
+        costs[j] = j;
+      }
+      else {
+        if (j > 0) {
+          var newValue = costs[j - 1];
+          if (s1.charAt(i - 1) != s2.charAt(j - 1)) {
+            newValue = Math.min(newValue, lastValue, costs[j]) + 1;
+          }
+          costs[j - 1] = lastValue;
+          lastValue = newValue;
+        }
+      }
+    }
+    if (i > 0) {
+      costs[s2.length] = lastValue;
+    }
+  }
+  return costs[s2.length];
+}
+
+/**
+ * ...
+ */
+function similarity(s1, s2) {
+  var longer = s1;
+  var shorter = s2;
+  if (s1.length < s2.length) {
+    longer = s2;
+    shorter = s1;
+  }
+  var longerLength = longer.length;
+  if (longerLength == 0) {
+    return 1;
+  }
+  return (longerLength - editDistance(longer, shorter)) / longerLength;
+};
+
+module.exports = similarity;
+
+},{}],12:[function(require,module,exports){
+// A list of void HTML elements
+module.exports = ["area", "base", "br", "col", "command", "embed", "hr",
+                  "img", "input", "keygen", "link", "meta", "param",
+                  "source", "track", "wbr"];
+
+},{}]},{},[10])(10)
 });
