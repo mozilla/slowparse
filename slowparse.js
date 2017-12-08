@@ -1686,12 +1686,25 @@ module.exports = (function() {
     UNTERMINATED_COMMENT: function(token) {
       var commentStart = token.interval.start;
       return {
+        highlight : {
+          start: commentStart,
+          end: commentStart + 4
+        },
         start: commentStart,
+        end: commentStart + 4,
         cursor: commentStart,
         token : token
       };
     },
     UNTERMINATED_ATTR_VALUE: function(parser, nameTok) {
+
+      var pos = parser.stream.pos;
+      if (!parser.stream.end()) {
+        pos = parser.stream.makeToken().interval.start;
+      }
+
+
+
       var currentNode = parser.domBuilder.currentNode,
           openTag = this._combine({
             name: currentNode.nodeName.toLowerCase()
@@ -1707,7 +1720,29 @@ module.exports = (function() {
               start: valueTok.interval.start
             }
           };
+
+          // To highlight the attribute for the user, we'll only want to highlight
+          // what we think the attribute value is. We determine that by looking for the first
+          // non-letter, non-number, non-dash character in the string.
+
+          var attributeString = valueTok.value;
+          var i, code, len;
+          for (i = 1, len = attributeString.length; i < len; i++) {
+            code = attributeString.charCodeAt(i);
+            if (!(code > 47 && code < 58) && // numeric (0-9)
+                !(code > 64 && code < 91) && // upper alpha (A-Z)
+                !(code == 45) && // dash
+                !(code > 96 && code < 123)) { // lower alpha (a-z)
+                  break;
+            }
+          }
+
+          attribute.value.start++;
+          attribute.value.end = attribute.value.start + i - 1;
+
       return {
+        // attributeValueBeginning: attributeValueBeginning,
+        highlight: attribute.value,
         openTag: openTag,
         attribute: attribute,
         cursor: attribute.value.start
