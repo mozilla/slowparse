@@ -314,9 +314,21 @@ module.exports = (function(){
           start: token.interval.start
         };
         var openTagName = this.domBuilder.currentNode.nodeName.toLowerCase();
-        if (closeTagName != openTagName)
-          throw new ParseError("MISMATCHED_CLOSE_TAG", this, openTagName,
-                               closeTagName, token);
+        if (closeTagName != openTagName) {
+          // Are we dealing with a rogue </ here?
+          if (closeTagName === "") {
+            throw new ParseError("MISSING_CLOSING_TAG_NAME", token, openTagName, this.domBuilder.currentNode.closeWarnings);
+          }
+
+          // Are we dealing with a tag that is closed in the source,
+          // even though based on DOM parsing it already got closed?
+          if (this.domBuilder.currentNode.closeWarnings) {
+            throw new ParseError("MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING", this, closeTagName, token);
+          }
+
+          // This is just a regular old mismatched closing tag.
+          throw new ParseError("MISMATCHED_CLOSE_TAG", this, openTagName, closeTagName, token);
+        }
         this._parseEndCloseTag();
       }
 
@@ -341,12 +353,25 @@ module.exports = (function(){
           var activeTagName = activeTagNode.nodeName.toLowerCase();
           if(this._knownOmittableCloseTags(activeTagName, tagName)) {
             this.domBuilder.popElement();
+
+            if (!this.domBuilder.currentNode.closeWarnings) {
+              this.domBuilder.currentNode.closeWarnings = [];
+            }
+
+            var childNodes = this.domBuilder.currentNode.childNodes,
+                position = childNodes.length - 1;
+
+            this.domBuilder.currentNode.closeWarnings.push({
+              tagName: activeTagName,
+              position: position,
+              parseInfo: childNodes[position].parseInfo
+            });
           }
         }
         // Store currentNode as the parentTagNode
         parentTagNode = this.domBuilder.currentNode;
-        this.domBuilder.pushElement(tagName, parseInfo, nameSpace);
 
+        this.domBuilder.pushElement(tagName, parseInfo, nameSpace);
         if (!this.stream.end())
           this._parseEndOpenTag(tagName);
       }

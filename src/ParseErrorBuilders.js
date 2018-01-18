@@ -42,11 +42,43 @@ module.exports = (function() {
         cursor: openTag.start
       };
     },
+    MISSING_CLOSING_TAG_NAME: function(token, openTagName, autocloseWarnings) {
+      var openTag = this._combine({
+            name: openTagName
+          }, token.interval);
+
+      if (autocloseWarnings) {
+        var tag = autocloseWarnings[0];
+        openTag = this._combine({
+            name: tag.tagName
+          }, tag.parseInfo.openTag);
+      }
+
+      return {
+        openTag: openTag,
+        cursor: token.interval.start
+      };
+    },
     UNEXPECTED_CLOSE_TAG: function(parser, closeTagName, token) {
       var closeTag = this._combine({
             name: closeTagName
           }, token.interval);
       return {
+        closeTag: closeTag,
+        cursor: closeTag.start
+      };
+    },
+    MISMATCHED_CLOSE_TAG_DUE_TO_EARLIER_AUTO_CLOSING: function(parser, closeTagName, token) {
+      var warnings = parser.domBuilder.currentNode.closeWarnings,
+          tag = warnings[0],
+          openTag = this._combine({
+            name: tag.tagName
+          }, tag.parseInfo.openTag),
+          closeTag = this._combine({
+            name: closeTagName
+          }, token.interval);
+      return {
+        openTag: openTag,
         closeTag: closeTag,
         cursor: closeTag.start
       };
