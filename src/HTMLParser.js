@@ -116,7 +116,8 @@ module.exports = (function(){
     // http://www.w3.org/TR/html5/syntax.html#optional-tags
 
     // HTML elements that with omittable close tag
-    omittableCloseTagHtmlElements: ["p", "li", "td", "th"],
+    omittableCloseTagHtmlElements: ["p", "li", "thead", "tbody", "tfoot", "tr", "td", "th",
+        "dt", "dd", "rb", "rt", "rtc", "rp", "option", "optgroup" ],
 
     // HTML elements that paired with omittable close tag list
     omittableCloseTags: {
@@ -126,7 +127,19 @@ module.exports = (function(){
             "section", "table", "ul"],
       "th": ["th", "td"],
       "td": ["th", "td"],
-      "li": ["li"]
+      "tr": ["tr"],
+      "li": ["li"],
+      "dt": ["dt", "dd"],
+      "dd": ["dt", "dd"],
+      "rb": ["rb","rt","rtc","rp"],
+      "rt": ["rb","rt","rtc","rp"],
+      "rtc": ["rb","rtc","rp"],
+      "rp": ["rb","rt","rtc","rp"],
+      "optgroup": ["optgroup"],
+      "option": ["option", "optgroup"],
+      "thead": ["tbody", "tfoot"],
+      "tbody": ["tbody", "tfoot"],
+      "tfoot": ["tbody"]
     },
 
     // We keep a list of all valid HTML5 elements.
@@ -222,6 +235,38 @@ module.exports = (function(){
     // is supposed in the HTML spec. Currently these are "xlink" and "xml".
     _supportedAttributeNameSpace: function(ns) {
       return this.attributeNamespaces.indexOf(ns) !== -1;
+    },
+
+    _isNextTagEnder: function (stream) {
+      var closeTag=isNextCloseTag(stream);
+      var currNode = this.domBuilder.currentNode ;
+      var n=1;
+      if (!closeTag) {return false;}
+      closeTag=closeTag.toLowerCase();
+      while (currNode && currNode.nodeName) {
+        var tagName = currNode.nodeName.toLowerCase();
+        if (closeTag == tagName) { return {'n': +n}; }
+        if (!this._knownOmittableCloseTagHtmlElement(tagName)) { return false;}
+        currNode=currNode.parentNode;
+        n++;
+      }
+      return false;
+    },
+
+    _popOmited: function(tag) {
+      var currNode = this.domBuilder.currentNode ;
+      var n=1;
+      tag=tag.toLowerCase();
+      while (currNode && currNode.nodeName) {
+        var tagName = currNode.nodeName.toLowerCase();
+        if (!this._knownOmittableCloseTagHtmlElement(tagName)) { return false;}
+        n++;
+        if (this._knownOmittableCloseTags(tagName,tag)) break;
+        //if (tag == tagName) { return {'n': +n}; }
+        currNode=currNode.parentNode;
+      }
+      this.domBuilder.popElements(n-1);
+
     },
 
     // #### The HTML Master Parse Function
@@ -337,12 +382,16 @@ module.exports = (function(){
 
         // If the preceding tag and the active tag is omittableCloseTag pairs,
         // we tell our DOM builder that we're done.
+        // FIXME TODO get rid of activeTagNode; add loop that can pop nested omitable FIXME TODO
+        this._popOmited(tagName);
+        /*
         if (activeTagNode && parentTagNode != this.domBuilder.fragment.node){
           var activeTagName = activeTagNode.nodeName.toLowerCase();
           if(this._knownOmittableCloseTags(activeTagName, tagName)) {
             this.domBuilder.popElement();
           }
         }
+        */
         // Store currentNode as the parentTagNode
         parentTagNode = this.domBuilder.currentNode;
         this.domBuilder.pushElement(tagName, parseInfo, nameSpace);
@@ -456,6 +505,7 @@ module.exports = (function(){
 
           // If the open tag represents a optional-omit-close-tag element, there may be
           // an optional closing element, so we save the currentNode into activeTag for next step check.
+          // FIXME TODO kill activeTagNode
           activeTagNode = false;
           if (tagName && this._knownOmittableCloseTagHtmlElement(tagName)){
             activeTagNode = this.domBuilder.currentNode;
@@ -486,8 +536,15 @@ module.exports = (function(){
             this.domBuilder.pushContext("html", this.stream.pos);
           }
 
+          // FIXME TODO isNextParent is replaced by _isNextTagEnder(stream)
+          //   also it can pop more than one element FIXME TODO
           // if there is no more content in the parent element, we tell DOM builder that we're done.
-          if(parentTagNode && parentTagNode != this.domBuilder.fragment.node) {
+          // this. _isNextTagEnder(this.stream);
+          var tagEnds=this. _isNextTagEnder(this.stream);
+          if (tagEnds && tagEnds.n > 1) {
+            this.domBuilder.popElements(tagEnds.n-1);
+          }
+          /* if(parentTagNode && parentTagNode != this.domBuilder.fragment.node) {
             var parentTagName = parentTagNode.nodeName.toLowerCase(),
                 nextIsParent = isNextTagParent(this.stream, parentTagName),
                 needsEndTag = !allowsOmmitedEndTag(parentTagName, tagName),
@@ -499,6 +556,7 @@ module.exports = (function(){
               }
             }
           }
+          */
           return;
         }
 

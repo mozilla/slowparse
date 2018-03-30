@@ -35,6 +35,12 @@ module.exports = (function(){
     popElement: function() {
       this.currentNode = this.currentNode.parentNode;
     },
+    popElements: function(n) {
+      while (n>0) {
+        this.currentNode = this.currentNode.parentNode;
+        n--;
+      }
+    },
     // record the cursor position for a context change (text/html/css/script)
     pushContext: function(context, position) {
       this.contexts.push({

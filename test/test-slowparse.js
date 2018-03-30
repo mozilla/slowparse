@@ -606,6 +606,60 @@ module.exports = function(Slowparse, window, document, validators) {
     ok(!result.error, "no error on omitted </p>");
   });
 
+  test("parsing elements with optional close tags: <select><optgroup label='X'><option>V<option>S<optgroup label='Z'><option>M<option>A</select>", function() {
+    var html = '<select><optgroup label="X"><option>V<option>S<optgroup label="Z"><option>M<option>A</select>';
+    var result = parse(html);
+    ok(!result.error, "no error on omitted </option> and </optgroup>");
+  });
+
+  test("parsing elements with optional close tags: <datalist><option>a<option>b</datalist>", function() {
+    var html = '<datalist><option>a<option>b</datalist>';
+    var result = parse(html);
+    ok(!result.error, "no error on omitted </option>");
+  });
+
+  test("parsing elements with optional close tags: <table><tr><td></td><tr><td></td></tr></table>", function() {
+    var html = '<table><tr><td></td><tr><td></td></tr></table>';
+    var result = parse(html);
+    ok(!result.error, "no error on omitted </tr> before <tr>");
+  });
+
+  test("parsing elements with optional close tags: <table><tr><td></td><tr><td></td></table>", function() {
+    var html = '<table><tr><td></td><tr><td></td></table>';
+    var result = parse(html);
+    ok(!result.error, "no error on omitted </tr>");
+  });
+
+  test("parsing elements with optional close tags: <table><tr><td><tr><td></table>", function() {
+    var html = '<table><tr><td><tr><td></table>';
+    var result = parse(html);
+    ok(!result.error, "no error on omitted </tr> and </td>");
+  });
+
+  test("parsing elements with optional close tags: <table><thead><tr><td><tbody><tr><td><tr><td><tfoot></table>", function() {
+    var html = '<table><thead><tr><td><tbody><tr><td><tr><td><tfoot></table>';
+    var result = parse(html);
+    ok(!result.error, "no error on omitted </tr> and </td>");
+  });
+
+  test("parsing elements with optional close tags: <dl><dt>Coffee<dd>Black hot drink<dt>Milk<dd>White cold drink</dl>", function() {
+    var html = '<dl><dt>Coffee<dd>Black hot drink<dt>Milk<dd>White cold drink</dl>';
+    var result = parse(html);
+    ok(!result.error, "no error on omitted </dt> and </dd>");
+  });
+
+  test("parsing elements with optional close tags: <ruby>漢<rp>(<rt>Kan<rp>)</rp>字<rp>(<rt>ji<rp>)</ruby>", function() {
+    var html = '<ruby>漢<rp>(<rt>Kan<rp>)</rp>字<rp>(<rt>ji<rp>)</ruby>';
+    var result = parse(html);
+    ok(!result.error, "no error on omitted </rp> and </rt>");
+  });
+
+  test("parsing elements with optional close tags: <ruby><rb>10<rb>31<rb>2002<rtc><rt>Month<rt>Day<rt>Year<rtc><rt>Expiration Date</ruby>", function() {
+    var html = '<ruby><rb>10<rb>31<rb>2002<rtc><rt>Month<rt>Day<rt>Year<rtc><rt>Expiration Date</ruby>';
+    var result = parse(html);
+    ok(!result.error, "no error on omitted </rb> , </rt> ,and </rtc>");
+  });
+
   test("intentional fail for optional close tag (incorrect use). pass = not accepted", function() {
     var html = '<div><p>text\n<a>more text</a></div>';
     var result = parse(html);
