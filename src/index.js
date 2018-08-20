@@ -57,7 +57,7 @@
     });
 
     return {
-      document: domBuilder.fragment.node,
+      document: domBuilder.fragment,
       contexts: domBuilder.contexts,
       warnings: warnings,
       error: error
